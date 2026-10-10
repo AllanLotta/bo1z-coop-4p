@@ -50,7 +50,8 @@ D-pad equipment, Options menu. Aim speed: **Aim − / Aim +** on the card.
 The two browsers are connected through a small relay on Cloudflare. **By default everyone uses the shared relay,
 which runs on invictus841's free Cloudflare plan.** It allows roughly **6 hours of play per day in total, for
 everyone together**. When that is used up, co-op stops working for the rest of the day (it resets at midnight
-UTC). Nobody is charged anything.
+UTC). Nobody is charged anything. The Co-op card shows a bar with how much of today's shared allowance is
+used (an estimate).
 
 To play without that limit, run your own relay, free, in about five minutes:
 

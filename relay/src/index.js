@@ -10,6 +10,13 @@ import {
 } from "../../shared/protocol.js";
 
 const REPLACED_CLOSE_CODE = 4001;
+
+// Daily usage estimate (GET /usage): Cloudflare's free plan allows 100,000 Durable Object requests a day, and bills
+// incoming WebSocket messages at 20 per request. Each room reports what it carried to one shared counter.
+const FREE_DAILY_REQUESTS = 100000;
+const MESSAGES_PER_REQUEST = 20;
+const USAGE_FLUSH_MS = 60000;
+const utcDay = (time = Date.now()) => new Date(time).toISOString().slice(0, 10);
 const PROTOCOL_CLOSE_CODE = 4003;
 const TOO_BIG_CLOSE_CODE = 1009;
 
@@ -71,6 +78,11 @@ export default {
     if (request.method === "GET" && url.pathname === "/health") {
       return json({ ok: true, protocol: PROTOCOL_VERSION }, 200, headers);
     }
+    if (request.method === "GET" && url.pathname === "/usage") {
+      const counter = env.USAGE.get(env.USAGE.idFromName("global"));
+      const usage = await (await counter.fetch("https://usage/read")).json();
+      return json(usage, 200, { ...headers, "cache-control": "public, max-age=60" });
+    }
 
     const roomId = roomIdFromPath(url.pathname);
     if (!roomId) return json({ error: "not_found" }, 404, headers);
@@ -102,6 +114,7 @@ export class RoomRelay extends DurableObject {
     super(ctx, env);
     // Rate-limit state is per instance; it simply resets after hibernation.
     this.buckets = new Map();
+    this.usage = { messages: 0, connections: 0, flushedAt: Date.now() };
   }
 
   async fetch(request) {
@@ -118,6 +131,7 @@ export class RoomRelay extends DurableObject {
 
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server, [role]);
+    this.count(0, 1);
     server.serializeAttachment({ roomId, role, joinedAt: Date.now() });
 
     const peer = this.peerOf(role);
@@ -128,6 +142,7 @@ export class RoomRelay extends DurableObject {
   }
 
   webSocketMessage(socket, payload) {
+    this.count(1, 0);
     const role = this.roleOf(socket);
     if (!role) {
       this.safeClose(socket, PROTOCOL_CLOSE_CODE, "Unknown connection");
@@ -175,6 +190,7 @@ export class RoomRelay extends DurableObject {
 
   leave(socket) {
     this.buckets.delete(socket);
+    this.flushUsage();
     const role = this.roleOf(socket);
     if (!role) return;
     // A replaced socket leaves while its successor is already open: the peer
@@ -182,6 +198,23 @@ export class RoomRelay extends DurableObject {
     if (this.socketsFor(role, socket).length > 0) return;
     const peer = this.peerOf(role);
     if (peer) this.send(peer, { t: "peer", present: false });
+  }
+
+  count(messages, connections) {
+    this.usage.messages += messages;
+    this.usage.connections += connections;
+    if (Date.now() - this.usage.flushedAt >= USAGE_FLUSH_MS) this.flushUsage();
+  }
+
+  /** Adds what this room carried since the last report to the shared counter (a request itself, once a minute). */
+  flushUsage() {
+    const { messages, connections } = this.usage;
+    this.usage = { messages: 0, connections: 0, flushedAt: Date.now() };
+    if (!messages && !connections) return;
+    const counter = this.env.USAGE.get(this.env.USAGE.idFromName("global"));
+    const report = counter.fetch("https://usage/add", { method: "POST", body: JSON.stringify({ messages, connections }) })
+      .catch(() => {});
+    this.ctx.waitUntil(report);
   }
 
   roleOf(socket) {
@@ -234,5 +267,34 @@ export class RoomRelay extends DurableObject {
     } catch {
       // Already closed.
     }
+  }
+}
+
+/** One instance ("global"): today's totals, keyed by UTC day so the count restarts when Cloudflare's does. */
+export class UsageCounter extends DurableObject {
+  async fetch(request) {
+    const day = utcDay();
+    const stored = (await this.ctx.storage.get("usage")) ?? {};
+    const usage = stored.day === day ? stored : { day, messages: 0, connections: 0, reports: 0 };
+    if (request.method === "POST") {
+      let body = {};
+      try { body = await request.json(); } catch { /* empty */ }
+      usage.messages += Math.max(0, Math.min(1e7, Number(body.messages) || 0));
+      usage.connections += Math.max(0, Math.min(1e5, Number(body.connections) || 0));
+      usage.reports += 1;
+      await this.ctx.storage.put("usage", usage);
+      return new Response(null, { status: 204 });
+    }
+    // Estimated requests: messages at 20 per request, one per connection, one per report to this counter.
+    const requests = Math.ceil(usage.messages / MESSAGES_PER_REQUEST) + usage.connections + usage.reports;
+    const tomorrow = new Date(`${day}T00:00:00Z`).getTime() + 86400000;
+    return Response.json({
+      day,
+      requests,
+      limit: FREE_DAILY_REQUESTS,
+      fraction: Math.min(1, requests / FREE_DAILY_REQUESTS),
+      resetsAt: new Date(tomorrow).toISOString(),
+      estimate: true,
+    });
   }
 }
