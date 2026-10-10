@@ -53,20 +53,26 @@ everyone together**. When that is used up, co-op stops working for the rest of t
 UTC). Nobody is charged anything. The Co-op card shows a bar with how much of today's shared allowance is
 used (an estimate).
 
-To play without that limit, run your own relay, free, in about five minutes:
+To get your own allowance instead of sharing it with everyone, run your own relay, free, in about five minutes.
+Your relay has the same free allowance (about 6 hours of play a day), but it is only used by the people you
+play with.
 
-1. Make a free account at [cloudflare.com](https://dash.cloudflare.com/sign-up) and install [Node.js](https://nodejs.org).
-2. In this folder, in a terminal:
+1. Make a free account at [cloudflare.com](https://dash.cloudflare.com/sign-up) and **confirm your email address**
+   (Cloudflare does not deploy anything before that).
+2. Install [Node.js](https://nodejs.org), version 22 or newer.
+3. Open a terminal **in the unzipped folder of this extension** (the one containing `package.json`) and run:
    ```sh
    npm install
    npx wrangler login
    npm run deploy
    ```
-   It prints your relay's address, like `https://bo1-zombies-coop-relay.<your-name>.workers.dev`.
-3. On vel.gg, in the Co-op card: **Change relay** → paste that address → **Save**.
+   `npx wrangler login` opens your browser: click **Allow**. The first time you deploy, Cloudflare may ask you to
+   choose a `workers.dev` name: pick any. At the end it prints your relay's address, like
+   `https://bo1-zombies-coop-relay.<your-name>.workers.dev`.
+4. On vel.gg, in the Co-op card: **Change relay** → paste that address → **Save**.
 
 Both players must use the same relay. The host's invite links carry it, so player 2 just clicks
-**Use this relay** on their card. Your relay has its own free allowance (about 6 hours of play a day).
+**Use this relay** on their card.
 
 ## How it works
 
