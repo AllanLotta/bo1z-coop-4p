@@ -1,6 +1,6 @@
 /**
  * Wire protocol shared by the relay (relay/src/index.js) and the browser
- * extension (extension/src). Version 2 tunnels the engine's own loopback
+ * extension (dist/coop-main.js). Version 2 tunnels the engine's own loopback
  * packets; the relay never looks inside them.
  *
  * A room holds one host and one guest. Each opens

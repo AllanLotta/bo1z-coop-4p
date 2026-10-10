@@ -88,5 +88,5 @@ This is a starting base, shared as is. It isn't maintained, and changes aren't r
 Want to fix a bug or add something? **Fork** this repo (button at the top right) and work on your own copy: fix
 it yourself, with AI tools if you like, and share your version with whoever you want.
 
-The extension's source code (plain JavaScript, built into `dist/coop-main.js`) and its tests are in
-[invictus841/bo1-zombies-decompiled, `browser-coop/`](https://github.com/invictus841/bo1-zombies-decompiled/tree/feature/browser-coop/browser-coop).
+All of the extension's code is in `dist/coop-main.js`, one readable JavaScript file you can edit directly. The relay's
+code is in `relay/`.
