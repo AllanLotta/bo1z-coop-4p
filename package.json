@@ -1,0 +1,12 @@
+{
+  "name": "bo1z-coop-relay",
+  "private": true,
+  "type": "module",
+  "description": "Relay for the BO1 Zombies co-op extension (Cloudflare Worker + Durable Object)",
+  "scripts": {
+    "deploy": "wrangler deploy --config relay/wrangler.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

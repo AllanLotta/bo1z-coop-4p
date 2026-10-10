@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "BO1 Zombies Co-op (vel.gg)",
-  "version": "1.3.4",
-  "description": "Two-player co-op for the browser BO1 Zombies at vel.gg/bo1z: one player hosts, the other joins with an invite link.",
+  "version": "1.4.0",
+  "description": "Two-player co-op (and PS5 / Xbox controller support) for the browser BO1 Zombies at vel.gg/bo1z by MisaDev4. One player hosts, the other joins with an invite link.",
   "content_scripts": [
     {
       "matches": ["https://vel.gg/*"],
