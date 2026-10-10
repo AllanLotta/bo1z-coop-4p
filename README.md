@@ -2,7 +2,7 @@
 
 A Chrome extension by **invictus841** that adds **2-player co-op** to [vel.gg/bo1z](https://vel.gg/bo1z/), the
 browser version of Black Ops 1 Zombies made by **MisaDev4**. One player hosts, the other joins with an invite
-link, on the same Wi-Fi or across the internet. It also adds **PS5 / PS4 / Xbox controller** support.
+link, from anywhere: online, over the internet (you don't need to be on the same Wi-Fi). It also adds **PS5 / PS4 / Xbox controller** support.
 
 Co-op is for **2 players only** (a host and one friend), not 3 or 4.
 
