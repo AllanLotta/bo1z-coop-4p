@@ -85,5 +85,5 @@ like this:
   open a **Pull Request** to propose them here. invictus841 reviews it and, if it's good, merges it into the
   extension for everyone.
 
-The extension's source code (TypeScript-free plain JavaScript, built into `dist/coop-main.js`) and its tests live
+The extension's source code (plain JavaScript, built into `dist/coop-main.js`) and its tests live
 in [invictus841/bo1-zombies-decompiled, `browser-coop/`](https://github.com/invictus841/bo1-zombies-decompiled/tree/feature/browser-coop/browser-coop).
