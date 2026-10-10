@@ -1,8 +1,10 @@
-# BO1 Zombies Co-op, for vel.gg by MisaDev4
+# BO1 Zombies 2-Player Co-op, by invictus841 (for vel.gg by MisaDev4)
 
-A Chrome extension that adds **2-player co-op** to [vel.gg/bo1z](https://vel.gg/bo1z/), the browser version of
-Black Ops 1 Zombies made by **MisaDev4**. One player hosts, the other joins with an invite link, on the same
-Wi-Fi or across the internet. It also adds **PS5 / PS4 / Xbox controller** support.
+A Chrome extension by **invictus841** that adds **2-player co-op** to [vel.gg/bo1z](https://vel.gg/bo1z/), the
+browser version of Black Ops 1 Zombies made by **MisaDev4**. One player hosts, the other joins with an invite
+link, on the same Wi-Fi or across the internet. It also adds **PS5 / PS4 / Xbox controller** support.
+
+Co-op is for **2 players only** (a host and one friend), not 3 or 4.
 
 The game itself still runs from vel.gg; the extension only adds co-op on top of it, in your own browser.
 
@@ -28,6 +30,13 @@ Good to know:
 - If player 2 gets disconnected, they click **Rejoin** on the card. Joining mid-round means watching until the
   next round, as in the original game.
 - If player 2 spawns far away, their card has **Go to player 1** (press Escape to see it).
+
+## Known issues
+
+- **Spawns on some maps are buggy.** On **Five** for example, at the very first spawn both players can die right
+  away and the game ends. Don't worry: a few seconds later a new game starts on its own, and both players spawn
+  correctly.
+- If player 2 still lands somewhere odd, press Escape and use **Go to player 1** on their card.
 
 ## Controller
 
@@ -64,3 +73,17 @@ The vel.gg game is the decompiled BO1 engine compiled to WebAssembly. Its multip
 its network layer was cut. The extension makes a few small changes to the engine as the page loads it, and carries
 the game's own packets between the two browsers through the relay (`relay/`), which forwards them without looking
 inside.
+
+## Help improve it
+
+This is a community project: anyone is welcome to fix bugs, add features or improve it. On GitHub that works
+like this:
+
+- **Report a problem or suggest an idea:** open an [Issue](https://github.com/invictus841/bo1z-coop-extension/issues)
+  (the **Issues** tab above). Say which map, what happened, and paste the error details if the game showed any.
+- **Change the code yourself:** click **Fork** (top right) to get your own copy, make your changes there, then
+  open a **Pull Request** to propose them here. invictus841 reviews it and, if it's good, merges it into the
+  extension for everyone.
+
+The extension's source code (TypeScript-free plain JavaScript, built into `dist/coop-main.js`) and its tests live
+in [invictus841/bo1-zombies-decompiled, `browser-coop/`](https://github.com/invictus841/bo1-zombies-decompiled/tree/feature/browser-coop/browser-coop).
