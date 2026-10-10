@@ -74,16 +74,12 @@ its network layer was cut. The extension makes a few small changes to the engine
 the game's own packets between the two browsers through the relay (`relay/`), which forwards them without looking
 inside.
 
-## Help improve it
+## Make it your own
 
-This is a community project: anyone is welcome to fix bugs, add features or improve it. On GitHub that works
-like this:
+This is a starting base, shared as is. It isn't maintained, and changes aren't reviewed or merged here.
 
-- **Report a problem or suggest an idea:** open an [Issue](https://github.com/invictus841/bo1z-coop-extension/issues)
-  (the **Issues** tab above). Say which map, what happened, and paste the error details if the game showed any.
-- **Change the code yourself:** click **Fork** (top right) to get your own copy, make your changes there, then
-  open a **Pull Request** to propose them here. invictus841 reviews it and, if it's good, merges it into the
-  extension for everyone.
+Want to fix a bug or add something? **Fork** this repo (button at the top right) and work on your own copy: fix
+it yourself, with AI tools if you like, and share your version with whoever you want.
 
-The extension's source code (plain JavaScript, built into `dist/coop-main.js`) and its tests live
-in [invictus841/bo1-zombies-decompiled, `browser-coop/`](https://github.com/invictus841/bo1-zombies-decompiled/tree/feature/browser-coop/browser-coop).
+The extension's source code (plain JavaScript, built into `dist/coop-main.js`) and its tests are in
+[invictus841/bo1-zombies-decompiled, `browser-coop/`](https://github.com/invictus841/bo1-zombies-decompiled/tree/feature/browser-coop/browser-coop).
