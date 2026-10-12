@@ -1,4 +1,4 @@
-// BO1 Zombies co-op for vel.gg 1.5.2: the whole extension in one readable file
+// BO1 Zombies co-op (up to 4 players) for vel.gg 2.0.0: the whole extension in one readable file
 (() => {
   // extension/src/layout.js
   var BUILDS = {
@@ -15,8 +15,28 @@
         // Attaches effects and weapons to another player's body. Fatal when that player's model is not there yet,
         // which solo play never meets; in co-op the two errors become "leave the tag as it was".
         cachedTagUpdate: [4317, "CachedTag_UpdateTagInternal(centity_s const*, cached_client_tag_t*, unsigned int, int, bool)"],
-        comError: [179, "Com_Error(errorParm_t, char const*, ...)"]
+        comError: [179, "Com_Error(errorParm_t, char const*, ...)"],
+        clCreateCmd: [6552, "CL_CreateCmd(usercmd_s*, int)"],
+        cgScriptSndLengthNotify: [6587, "CG_ScriptSndLengthNotify(int, int)"]
       },
+      // Byte edits inside one function, each matched exactly once. While a menu or the chat is open, a client marks its
+      // usercmds (button_bits[1] |= 4); the server passes that on and every other client draws a "player in a menu"
+      // effect whose material zombies never loads: Material_GetTechnique(null) in fx_drawCallback, a crash. So the
+      // bit is never set (|= 0). Upstream co-op crashed the same way on Escape or T.
+      bytePatches: [{
+        fn: "clCreateCmd",
+        find: [16, 220, 6, 65, 7, 70, 13, 0, 32, 5, 32, 5, 40, 2, 4, 65, 4, 114, 54, 2, 4],
+        replace: [16, 220, 6, 65, 7, 70, 13, 0, 32, 5, 32, 5, 40, 2, 4, 65, 0, 114, 54, 2, 4]
+      }, {
+        // Guests only. A notify sound's length goes to the server as the reliable command "sl", but only from the
+        // listen server's own client (com_sv_running). A guest's frozen local server still counts as running, so every
+        // guest sent it too: duplicates for the host, and while the host holds its start the unacknowledged commands
+        // pile up until EXE_ERR_CLIENT_CMD_OVERFLOW drops the guest. The guest's check becomes com_sv_running == 2.
+        fn: "cgScriptSndLengthNotify",
+        role: "guest",
+        find: [65, 200, 248, 169, 192, 0, 40, 2, 0, 45, 0, 24, 65, 1, 70, 4, 64],
+        replace: [65, 200, 248, 169, 192, 0, 40, 2, 0, 45, 0, 24, 65, 2, 70, 4, 64]
+      }],
       // Three words of zero padding between web-layer statics, referenced by no instruction.
       // The patch uses them as cross-thread mailboxes: CMD (char* console command), FREEZE (bool), INQ (ring index).
       flags: { cmd: 148263172, freeze: 148263176, inq: 148263180 },
@@ -201,6 +221,20 @@
     if (found !== expected) throw new Error(`neutralizeCalls: found ${found} calls, expected ${expected}`);
     return out;
   }
+  function replaceOnce(body, { fn, find, replace }) {
+    if (find.length !== replace.length) throw new Error(`byte patch ${fn}: sizes differ`);
+    const out = Uint8Array.from(body);
+    let at = -1, found = 0;
+    for (let i = 0; i + find.length <= out.length; i += 1) {
+      if (find.every((byte, k) => out[i + k] === byte)) {
+        at = i;
+        found += 1;
+      }
+    }
+    if (found !== 1) throw new Error(`byte patch ${fn}: found ${found} matches, expected 1`);
+    out.set(replace, at);
+    return out;
+  }
   function inspectWasm(bytes) {
     if (bytes[0] !== 0 || bytes[1] !== 97 || bytes[2] !== 115 || bytes[3] !== 109) throw new Error("not a wasm module");
     const sections = [];
@@ -272,7 +306,7 @@
     }
     return names;
   }
-  function patchEngine(input, hash, build = BUILDS[hash]) {
+  function patchEngine(input, hash, build = BUILDS[hash], role = null) {
     if (!build) throw new Error(`unknown engine build ${hash?.slice(0, 12)}`);
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
     const { sections, importedFunctions, nameSection } = inspectWasm(bytes);
@@ -286,6 +320,7 @@
       [build.functions.svFrame[0] - importedFunctions, [svFramePrologue(build), 1, 1]],
       [build.functions.netGetLoopPacket[0] - importedFunctions, [netGetLoopPacketPrologue(build), 3, 4]]
     ]);
+    const byteTargets = new Map((build.bytePatches ?? []).filter((patch) => !patch.role || patch.role === role).map((patch) => [build.functions[patch.fn][0] - importedFunctions, patch]));
     const assertIndex = build.functions.assertHandler ? build.functions.assertHandler[0] - importedFunctions : -1;
     const cachedTagIndex = build.functions.cachedTagUpdate && build.functions.comError ? build.functions.cachedTagUpdate[0] - importedFunctions : -1;
     let [count, at] = readUleb(bytes, code.body);
@@ -301,6 +336,10 @@
         patched += 1;
       } else if (cachedTagIndex === i) {
         const body = neutralizeCalls(bytes.subarray(bodyStart, bodyEnd), build.functions.comError[0], 3, 2);
+        parts.push(Uint8Array.from(uleb(body.length)), body);
+        patched += 1;
+      } else if (byteTargets.has(i)) {
+        const body = replaceOnce(bytes.subarray(bodyStart, bodyEnd), byteTargets.get(i));
         parts.push(Uint8Array.from(uleb(body.length)), body);
         patched += 1;
       } else if (target) {
@@ -326,7 +365,7 @@
       }
       at = bodyEnd;
     }
-    if (patched !== targets.size + (assertIndex >= 0 ? 1 : 0) + (cachedTagIndex >= 0 ? 1 : 0)) throw new Error("patch targets not found");
+    if (patched !== targets.size + byteTargets.size + (assertIndex >= 0 ? 1 : 0) + (cachedTagIndex >= 0 ? 1 : 0)) throw new Error("patch targets not found");
     const bodyLength = parts.reduce((sum, part) => sum + part.length, 0);
     const header = Uint8Array.from([10, ...uleb(bodyLength)]);
     const out = new Uint8Array(code.start + header.length + bodyLength + (bytes.length - code.end));
@@ -456,23 +495,27 @@
       return out;
     }
     /**
-     * Host: two rings the engine knows nothing about, inside one malloc'd block. The server sends to loopback port P
-     * by writing loopbacks[P] = base + P * stride, so P is picked to land in the block; Q = P + 1 is the inbound ring
-     * the patched NET_GetLoopPacket drains. Never freed.
+     * Host: rings the engine knows nothing about, inside one malloc'd block. The server sends to loopback port P by
+     * writing loopbacks[P] = base + P * stride, so P is picked to land in the block. Guest seat s (1..guests) gets
+     * port P + s - 1, its own outbound ring; port P + guests is the inbound ring the patched NET_GetLoopPacket
+     * drains, shared by every guest (each packet carries its sender's port). Never freed.
      */
-    allocateRemoteRings() {
+    allocateRemoteRings(guests = MAX_GUESTS) {
       const lb = this.layout.loopback;
       for (let attempt = 0; attempt < 4; attempt += 1) {
-        const size = 3 * lb.stride + 64;
+        const size = (guests + 2) * lb.stride + 64;
         const block = this.Module._malloc(size);
         if (!block) throw new Error("out of engine memory");
         this.u8.fill(0, block, block + size);
-        const port = Math.ceil((block - lb.base) / lb.stride);
-        const inPort = port + 1;
+        const first = Math.ceil((block - lb.base) / lb.stride);
+        const inPort = first + guests;
+        const ports = Array.from({ length: guests }, (_, i) => first + i);
         const fits = lb.base + (inPort + 1) * lb.stride <= block + size;
-        const allowed = ![port, inPort].some((p) => this.layout.forbiddenPorts.includes(p));
-        if (port >= 2 && inPort <= 65535 && fits && allowed) {
-          return { port, inPort, out: ringOffsets(this.layout, port), in: ringOffsets(this.layout, inPort) };
+        const allowed = ![...ports, inPort].some((p) => this.layout.forbiddenPorts.includes(p));
+        if (first >= 2 && inPort <= 65535 && fits && allowed) {
+          const seats = {};
+          ports.forEach((port, i) => seats[i + 1] = { port, out: ringOffsets(this.layout, port) });
+          return { seats, inPort, in: ringOffsets(this.layout, inPort) };
         }
       }
       throw new Error("could not place the co-op rings in engine memory");
@@ -487,6 +530,12 @@
   var RELAY_MESSAGE_TYPES = Object.freeze(["welcome", "peer", "error"]);
   var ROOM_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
   var ROOM_CODE_LENGTH = 16;
+  var MAX_GUESTS = 3;
+  function createGuestId(random = (bytes) => crypto.getRandomValues(bytes)) {
+    let id = "";
+    for (const byte of random(new Uint8Array(16))) id += ROOM_ALPHABET[byte & 31];
+    return id;
+  }
   function createRoomCode(random = (bytes) => crypto.getRandomValues(bytes)) {
     const bytes = random(new Uint8Array(ROOM_CODE_LENGTH));
     let code = "";
@@ -895,8 +944,8 @@ input:focus { border-color: #999; }
   }
 
   // extension/src/main.js
-  var VERSION = "1.5.2";
-  var DEFAULT_RELAY = "https://bo1-zombies-coop-relay.macosapp.workers.dev";
+  var VERSION = "2.0.0";
+  var DEFAULT_RELAY = "https://bo1z-coop-4p-relay.allanlotta.workers.dev";
   var BASE = "/bo1z/";
   var MAP_SLUGS = {
     zombie_pentagon: "five",
@@ -961,7 +1010,11 @@ input:focus { border-color: #999; }
       rings: null,
       zone: null,
       gameArgs: null,
-      guestSlot: null,
+      guestId: null,
+      seat: null,
+      // Host: one entry per guest seat ever seen this session.
+      guests: /* @__PURE__ */ new Map(),
+      joinSeat: null,
       copiedAt: 0,
       refreshRate: 60,
       log: []
@@ -1051,6 +1104,7 @@ input:focus { border-color: #999; }
     });
     readUsage();
     setInterval(readUsage, 6e5);
+    if (coop.mode === "guest") coop.guestId = guestIdFor(room);
     if (coop.mode) {
       coop.phase = coop.mode === "host" ? "hosting" : "joining-room";
       coop.pump = startPump(coop);
@@ -1071,7 +1125,7 @@ input:focus { border-color: #999; }
         return bytes;
       }
       try {
-        const patched = patchEngine(bytes, coop.hash, coop.build);
+        const patched = patchEngine(bytes, coop.hash, coop.build, coop.mode);
         coop.patched = true;
         coop.note("engine patched");
         return patched;
@@ -1136,15 +1190,392 @@ input:focus { border-color: #999; }
       window.addEventListener(type, block, true);
     }
   }
+  // extension/src/pump-worker.js
+  // Runs in a Worker, built from this function's source: it may only use what it defines itself.
+  function pumpWorker() {
+    const PROTOCOL_VERSION = 3;
+    const MAX_GUESTS = 3;
+    const MAX_TEXT_BYTES = 4096;
+    const MAX_BINARY_BYTES = 65536;
+    const MAX_PACKET_BYTES = 1264;
+    const BATCH_VERSION = 1;
+    const BATCH_KIND_PACKETS = 1;
+    const BATCH_KIND_SEAT_PACKETS = 2;
+    function relaySocketUrl(relayBase, room, role, guestId) {
+      const url = new URL(relayBase);
+      url.protocol = url.protocol === "http:" || url.protocol === "ws:" ? "ws:" : "wss:";
+      url.pathname = `/v1/rooms/${encodeURIComponent(room)}`;
+      url.search = `?role=${role}&v=${PROTOCOL_VERSION}${role === "guest" ? `&id=${guestId}` : ""}`;
+      return url.toString();
+    }
+    /** Guest batch: packets; host batch: { seat, packet } items. */
+    function encodeBatch(items, seats) {
+      const extra = seats ? 3 : 2;
+      let size = 4;
+      for (const item of items) size += extra + (seats ? item.packet : item).byteLength;
+      if (items.length > 65535 || size > MAX_BINARY_BYTES) throw new RangeError("packet batch too large");
+      const out = new Uint8Array(size);
+      const view = new DataView(out.buffer);
+      out[0] = BATCH_VERSION;
+      out[1] = seats ? BATCH_KIND_SEAT_PACKETS : BATCH_KIND_PACKETS;
+      view.setUint16(2, items.length, true);
+      let offset = 4;
+      for (const item of items) {
+        const packet = seats ? item.packet : item;
+        if (packet.byteLength > MAX_PACKET_BYTES) throw new RangeError("packet too large");
+        if (seats) out[offset++] = item.seat;
+        view.setUint16(offset, packet.byteLength, true);
+        out.set(packet, offset + 2);
+        offset += 2 + packet.byteLength;
+      }
+      return out;
+    }
+    /** Returns { seat, packet } items (seat 0 in a guest batch), or null for a malformed batch. */
+    function decodeBatch(data, seats) {
+      const bytes = new Uint8Array(data);
+      if (bytes.byteLength < 4 || bytes[0] !== BATCH_VERSION || bytes[1] !== (seats ? BATCH_KIND_SEAT_PACKETS : BATCH_KIND_PACKETS)) return null;
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const count = view.getUint16(2, true);
+      const items = [];
+      let offset = 4;
+      for (let i = 0; i < count; i += 1) {
+        let seat = 0;
+        if (seats) {
+          if (offset + 1 > bytes.byteLength) return null;
+          seat = bytes[offset++];
+          if (seat < 1 || seat > MAX_GUESTS) return null;
+        }
+        if (offset + 2 > bytes.byteLength) return null;
+        const length = view.getUint16(offset, true);
+        offset += 2;
+        if (length > MAX_PACKET_BYTES || offset + length > bytes.byteLength) return null;
+        items.push({ seat, packet: bytes.subarray(offset, offset + length) });
+        offset += length;
+      }
+      return offset === bytes.byteLength ? items : null;
+    }
+    function parseControl(text) {
+      if (typeof text !== "string" || text.length > MAX_TEXT_BYTES) return null;
+      let value;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        return null;
+      }
+      if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.t !== "string" || value.t.length > 32) return null;
+      return value;
+    }
+
+    // extension/src/rings.js
+    class RingReader {
+      constructor(memory, layout, base, { advanceGet = false } = {}) {
+        this.i32 = new Int32Array(memory);
+        this.u8 = new Uint8Array(memory);
+        this.lb = layout.loopback;
+        this.base = base;
+        this.getIndex = base + this.lb.offGet >> 2;
+        this.sendIndex = base + this.lb.offSend >> 2;
+        this.advanceGet = advanceGet;
+        this.cursor = Atomics.load(this.i32, this.sendIndex);
+        this.lost = 0;
+      }
+      /** Skip everything written so far. */
+      skipToEnd() {
+        this.cursor = Atomics.load(this.i32, this.sendIndex);
+        if (this.advanceGet) Atomics.store(this.i32, this.getIndex, this.cursor);
+      }
+      /** Copies out every complete packet since the last poll. */
+      poll(out = []) {
+        const { slots, slotSize, offLen, dataMax } = this.lb;
+        let send = Atomics.load(this.i32, this.sendIndex);
+        if (send - this.cursor > slots - 1) {
+          this.lost += send - (slots - 1) - this.cursor;
+          this.cursor = send - (slots - 1);
+        }
+        while (this.cursor < send) {
+          const slot = this.base + (this.cursor & slots - 1) * slotSize;
+          const length = this.i32[slot + offLen >> 2];
+          const packet = length > 0 && length <= dataMax ? this.u8.slice(slot, slot + length) : null;
+          send = Atomics.load(this.i32, this.sendIndex);
+          if (send - this.cursor > slots - 1) {
+            this.lost += 1;
+          } else if (packet) {
+            out.push(packet);
+          }
+          this.cursor += 1;
+        }
+        if (this.advanceGet) Atomics.store(this.i32, this.getIndex, this.cursor);
+        return out;
+      }
+    }
+    class RingWriter {
+      constructor(memory, layout, base) {
+        this.i32 = new Int32Array(memory);
+        this.u8 = new Uint8Array(memory);
+        this.lb = layout.loopback;
+        this.base = base;
+        this.getIndex = base + this.lb.offGet >> 2;
+        this.sendIndex = base + this.lb.offSend >> 2;
+      }
+      /** Room for one more packet without overwriting one the engine has not read yet. */
+      hasRoom() {
+        const send = Atomics.load(this.i32, this.sendIndex);
+        const get = Atomics.load(this.i32, this.getIndex);
+        return send - get < this.lb.slots - 1;
+      }
+      /** Writes a packet that the engine reads as coming from loopback `port`; false (nothing written) when full. */
+      push(packet, port) {
+        const { slots, slotSize, offLen, offPort, dataMax } = this.lb;
+        if (packet.byteLength === 0 || packet.byteLength > dataMax) return true;
+        if (!this.hasRoom()) return false;
+        const send = Atomics.load(this.i32, this.sendIndex);
+        const slot = this.base + (send & slots - 1) * slotSize;
+        this.u8.set(packet, slot);
+        Atomics.store(this.i32, slot + offLen >> 2, packet.byteLength);
+        Atomics.store(this.i32, slot + offPort >> 2, port);
+        Atomics.add(this.i32, this.sendIndex, 1);
+        return true;
+      }
+    }
+    function outOfBandCommand(packet) {
+      if (packet.byteLength < 5 || packet[0] !== 255 || packet[1] !== 255 || packet[2] !== 255 || packet[3] !== 255) return null;
+      let end = 4;
+      while (end < packet.byteLength && end < 64 && packet[end] !== 0 && packet[end] !== 32 && packet[end] !== 10) end += 1;
+      return String.fromCharCode(...packet.subarray(4, end));
+    }
+
+    const POLL_MS = 1;
+    const FLUSH_MS = 4;
+    const INBOX_LIMIT = 512;
+    const PING_MS = 2e3;
+    const state = {
+      role: null,
+      url: null,
+      socket: null,
+      closed: false,
+      retries: 0,
+      // Host: one reader per guest seat (the server's ring for that guest) and one writer (the shared inbound ring,
+      // each packet stamped with its guest's port). Guest: reader 0 is the client's ring, the writer feeds port 0.
+      readers: [],
+      writer: null,
+      ports: {},
+      reading: false,
+      injecting: false,
+      dropUntilConnect: false,
+      dropOutOfBand: [],
+      inbox: [],
+      outbox: [],
+      lastFlush: 0,
+      looping: false,
+      stats: { packetsOut: 0, packetsIn: 0, bytesOut: 0, bytesIn: 0, framesOut: 0, framesIn: 0, dropped: 0, lost: 0, rtt: null }
+    };
+    const hosting = () => state.role === "host";
+    const post = (message) => self.postMessage(message);
+    self.onmessage = (event) => {
+      const message = event.data;
+      switch (message.type) {
+        case "connect":
+          state.role = message.role;
+          state.url = relaySocketUrl(message.relay, message.room, message.role, message.guestId);
+          open();
+          startLoop();
+          return;
+        case "attach":
+          state.readers = message.reads.map(({ seat, base }) => ({ seat, ring: new RingReader(message.memory, message.layout, base, { advanceGet: message.advanceGet }) }));
+          state.writer = new RingWriter(message.memory, message.layout, message.writeBase);
+          state.ports = message.ports;
+          state.reading = Boolean(message.reading);
+          state.injecting = Boolean(message.injecting);
+          state.dropOutOfBand = message.dropOutOfBand ?? [];
+          return;
+        case "read":
+          for (const { ring } of state.readers) ring.skipToEnd();
+          state.dropUntilConnect = Boolean(message.dropUntilConnect);
+          state.reading = true;
+          return;
+        case "inject":
+          state.injecting = Boolean(message.on);
+          if (message.clearInbox) state.inbox.length = 0;
+          return;
+        case "send":
+          sendText(message.message);
+          return;
+        case "close":
+          state.closed = true;
+          try {
+            state.socket?.close(1e3, "bye");
+          } catch {
+          }
+          return;
+      }
+    };
+    function open() {
+      if (state.closed) return;
+      let socket;
+      try {
+        socket = new WebSocket(state.url);
+      } catch (error) {
+        post({ type: "socket", state: "error", reason: String(error?.message ?? error) });
+        return reconnect();
+      }
+      socket.binaryType = "arraybuffer";
+      state.socket = socket;
+      post({ type: "socket", state: "connecting" });
+      socket.onopen = () => {
+        state.retries = 0;
+        post({ type: "socket", state: "open" });
+      };
+      socket.onmessage = (event) => {
+        if (typeof event.data === "string") {
+          const message = parseControl(event.data);
+          if (message) control(message);
+          return;
+        }
+        const items = decodeBatch(event.data, hosting());
+        if (!items) return;
+        state.stats.framesIn += 1;
+        for (const item of items) {
+          state.stats.packetsIn += 1;
+          state.stats.bytesIn += item.packet.byteLength;
+          const command = outOfBandCommand(item.packet);
+          if (command && state.dropOutOfBand.includes(command)) continue;
+          state.inbox.push(item);
+        }
+        if (state.inbox.length > INBOX_LIMIT) {
+          state.stats.dropped += state.inbox.length - INBOX_LIMIT;
+          state.inbox.splice(0, state.inbox.length - INBOX_LIMIT);
+        }
+        pump();
+      };
+      socket.onclose = (event) => {
+        if (state.socket === socket) state.socket = null;
+        post({ type: "socket", state: "closed", code: event.code, reason: event.reason });
+        // 4001: replaced by a newer connection; 4004: the room is full.
+        if (event.code === 4001 || event.code === 4004) {
+          state.closed = true;
+          return;
+        }
+        reconnect();
+      };
+      socket.onerror = () => {
+      };
+    }
+    function reconnect() {
+      if (state.closed) return;
+      const delay = Math.min(5e3, 250 * 2 ** state.retries);
+      state.retries += 1;
+      setTimeout(open, delay);
+    }
+    function control(message) {
+      if (message.t === "ping") {
+        sendText(hosting() ? { t: "pong", ts: message.ts, to: message.from } : { t: "pong", ts: message.ts });
+        return;
+      }
+      if (message.t === "pong") {
+        if (typeof message.ts === "number") {
+          const rtt = Math.max(0, performance.now() - message.ts);
+          // The host pings every guest at once and shows the slowest.
+          state.stats.rtt = hosting() ? Math.max(rtt, state.stats.rttWindow ?? 0) : rtt;
+          if (hosting()) state.stats.rttWindow = state.stats.rtt;
+        }
+        return;
+      }
+      post({ type: "control", message });
+    }
+    function sendText(message) {
+      const socket = state.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+      socket.send(JSON.stringify(message));
+      return true;
+    }
+    function flush(now) {
+      if (!state.outbox.length) return;
+      const socket = state.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        state.stats.dropped += state.outbox.length;
+      } else {
+        const seats = hosting();
+        let batch = [], size = 4;
+        const send = () => {
+          if (!batch.length) return;
+          socket.send(encodeBatch(batch, seats));
+          state.stats.framesOut += 1;
+          batch = [];
+          size = 4;
+        };
+        for (const item of state.outbox) {
+          const extra = (seats ? 3 : 2) + item.packet.byteLength;
+          if (size + extra > MAX_BINARY_BYTES) send();
+          batch.push(seats ? item : item.packet);
+          size += extra;
+          state.stats.packetsOut += 1;
+          state.stats.bytesOut += item.packet.byteLength;
+        }
+        send();
+      }
+      state.outbox.length = 0;
+      state.lastFlush = now;
+    }
+    function pump() {
+      const now = performance.now();
+      if (state.reading) {
+        let lost = 0;
+        for (const { seat, ring } of state.readers) {
+          let packets = ring.poll([]);
+          lost += ring.lost;
+          if (state.dropUntilConnect && packets.length) {
+            const first = packets.findIndex((packet) => outOfBandCommand(packet) === "connect");
+            packets = first < 0 ? [] : packets.slice(first);
+            if (first >= 0) state.dropUntilConnect = false;
+          }
+          for (const packet of packets) state.outbox.push({ seat, packet });
+        }
+        state.stats.lost = lost;
+      }
+      if (state.outbox.length && now - state.lastFlush >= FLUSH_MS) flush(now);
+      if (state.writer && state.injecting) {
+        while (state.inbox.length && state.writer.push(state.inbox[0].packet, state.ports[state.inbox[0].seat] ?? 0)) state.inbox.shift();
+      }
+    }
+    async function startLoop() {
+      if (state.looping) return;
+      state.looping = true;
+      const tick = new Int32Array(new SharedArrayBuffer(4));
+      let lastPing = 0, lastStats = 0;
+      while (!state.closed) {
+        pump();
+        const now = performance.now();
+        if (now - lastPing >= PING_MS) {
+          lastPing = now;
+          state.stats.rttWindow = 0;
+          sendText({ t: "ping", ts: now });
+        }
+        if (now - lastStats >= 1e3) {
+          lastStats = now;
+          post({ type: "stats", stats: { ...state.stats, inbox: state.inbox.length } });
+        }
+        const wait = Atomics.waitAsync ? Atomics.waitAsync(tick, 0, 0, POLL_MS) : null;
+        if (wait?.async) await wait.value;
+        else await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      }
+    }
+  }
   function startPump(coop) {
-    const url = URL.createObjectURL(new Blob(['(() => {\n  // shared/protocol.js\n  var PROTOCOL_VERSION = 2;\n  var ROLES = Object.freeze(["host", "guest"]);\n  var RELAY_MESSAGE_TYPES = Object.freeze(["welcome", "peer", "error"]);\n  var MAX_TEXT_BYTES = 4096;\n  var MAX_BINARY_BYTES = 65536;\n  var MAX_PACKET_BYTES = 1264;\n  function relaySocketUrl(relayBase, room, role) {\n    const url = new URL(relayBase);\n    url.protocol = url.protocol === "http:" || url.protocol === "ws:" ? "ws:" : "wss:";\n    url.pathname = `/v1/rooms/${encodeURIComponent(room)}`;\n    url.search = `?role=${role}&v=${PROTOCOL_VERSION}`;\n    return url.toString();\n  }\n  var BATCH_VERSION = 1;\n  var BATCH_KIND_PACKETS = 1;\n  function encodePackets(packets) {\n    let size = 4;\n    for (const packet of packets) size += 2 + packet.byteLength;\n    if (packets.length > 65535 || size > MAX_BINARY_BYTES) throw new RangeError("packet batch too large");\n    const out = new Uint8Array(size);\n    const view = new DataView(out.buffer);\n    out[0] = BATCH_VERSION;\n    out[1] = BATCH_KIND_PACKETS;\n    view.setUint16(2, packets.length, true);\n    let offset = 4;\n    for (const packet of packets) {\n      if (packet.byteLength > MAX_PACKET_BYTES) throw new RangeError("packet too large");\n      view.setUint16(offset, packet.byteLength, true);\n      out.set(packet, offset + 2);\n      offset += 2 + packet.byteLength;\n    }\n    return out;\n  }\n  function decodePackets(data) {\n    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);\n    if (bytes.byteLength < 4 || bytes[0] !== BATCH_VERSION || bytes[1] !== BATCH_KIND_PACKETS) return null;\n    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);\n    const count = view.getUint16(2, true);\n    const packets = [];\n    let offset = 4;\n    for (let i = 0; i < count; i += 1) {\n      if (offset + 2 > bytes.byteLength) return null;\n      const length = view.getUint16(offset, true);\n      offset += 2;\n      if (length > MAX_PACKET_BYTES || offset + length > bytes.byteLength) return null;\n      packets.push(bytes.subarray(offset, offset + length));\n      offset += length;\n    }\n    return offset === bytes.byteLength ? packets : null;\n  }\n  function parseControl(text) {\n    if (typeof text !== "string" || text.length > MAX_TEXT_BYTES) return null;\n    let value;\n    try {\n      value = JSON.parse(text);\n    } catch {\n      return null;\n    }\n    if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.t !== "string" || value.t.length > 32) {\n      return null;\n    }\n    return value;\n  }\n\n  // extension/src/rings.js\n  var RingReader = class {\n    constructor(memory, layout, base, { advanceGet = false } = {}) {\n      this.i32 = new Int32Array(memory);\n      this.u8 = new Uint8Array(memory);\n      this.lb = layout.loopback;\n      this.base = base;\n      this.getIndex = base + this.lb.offGet >> 2;\n      this.sendIndex = base + this.lb.offSend >> 2;\n      this.advanceGet = advanceGet;\n      this.cursor = Atomics.load(this.i32, this.sendIndex);\n      this.lost = 0;\n    }\n    /** Skip everything written so far. */\n    skipToEnd() {\n      this.cursor = Atomics.load(this.i32, this.sendIndex);\n      if (this.advanceGet) Atomics.store(this.i32, this.getIndex, this.cursor);\n    }\n    /** Copies out every complete packet since the last poll. */\n    poll(out = []) {\n      const { slots, slotSize, offLen, dataMax } = this.lb;\n      let send = Atomics.load(this.i32, this.sendIndex);\n      if (send - this.cursor > slots - 1) {\n        this.lost += send - (slots - 1) - this.cursor;\n        this.cursor = send - (slots - 1);\n      }\n      while (this.cursor < send) {\n        const slot = this.base + (this.cursor & slots - 1) * slotSize;\n        const length = this.i32[slot + offLen >> 2];\n        const packet = length > 0 && length <= dataMax ? this.u8.slice(slot, slot + length) : null;\n        send = Atomics.load(this.i32, this.sendIndex);\n        if (send - this.cursor > slots - 1) {\n          this.lost += 1;\n        } else if (packet) {\n          out.push(packet);\n        }\n        this.cursor += 1;\n      }\n      if (this.advanceGet) Atomics.store(this.i32, this.getIndex, this.cursor);\n      return out;\n    }\n  };\n  var RingWriter = class {\n    constructor(memory, layout, base, port) {\n      this.i32 = new Int32Array(memory);\n      this.u8 = new Uint8Array(memory);\n      this.lb = layout.loopback;\n      this.base = base;\n      this.port = port;\n      this.getIndex = base + this.lb.offGet >> 2;\n      this.sendIndex = base + this.lb.offSend >> 2;\n    }\n    /** Room for one more packet without overwriting one the engine has not read yet. */\n    hasRoom() {\n      const send = Atomics.load(this.i32, this.sendIndex);\n      const get = Atomics.load(this.i32, this.getIndex);\n      return send - get < this.lb.slots - 1;\n    }\n    /** Returns false (and writes nothing) when the engine has not caught up. */\n    push(packet) {\n      const { slots, slotSize, offLen, offPort, dataMax } = this.lb;\n      if (packet.byteLength === 0 || packet.byteLength > dataMax) return true;\n      if (!this.hasRoom()) return false;\n      const send = Atomics.load(this.i32, this.sendIndex);\n      const slot = this.base + (send & slots - 1) * slotSize;\n      this.u8.set(packet, slot);\n      Atomics.store(this.i32, slot + offLen >> 2, packet.byteLength);\n      Atomics.store(this.i32, slot + offPort >> 2, this.port);\n      Atomics.add(this.i32, this.sendIndex, 1);\n      return true;\n    }\n  };\n  function outOfBandCommand(packet) {\n    if (packet.byteLength < 5 || packet[0] !== 255 || packet[1] !== 255 || packet[2] !== 255 || packet[3] !== 255) return null;\n    let end = 4;\n    while (end < packet.byteLength && end < 64 && packet[end] !== 0 && packet[end] !== 32 && packet[end] !== 10) end += 1;\n    return String.fromCharCode(...packet.subarray(4, end));\n  }\n\n  // extension/src/pump-worker.js\n  var POLL_MS = 1;\n  var FLUSH_MS = 4;\n  var INBOX_LIMIT = 512;\n  var PING_MS = 2e3;\n  var state = {\n    role: null,\n    url: null,\n    socket: null,\n    closed: false,\n    retries: 0,\n    reader: null,\n    writer: null,\n    reading: false,\n    injecting: false,\n    dropUntilConnect: false,\n    dropOutOfBand: [],\n    inbox: [],\n    outbox: [],\n    outboxBytes: 0,\n    lastFlush: 0,\n    looping: false,\n    stats: { packetsOut: 0, packetsIn: 0, bytesOut: 0, bytesIn: 0, framesOut: 0, framesIn: 0, dropped: 0, lost: 0, rtt: null }\n  };\n  var post = (message) => self.postMessage(message);\n  self.onmessage = (event) => {\n    const message = event.data;\n    switch (message.type) {\n      case "connect":\n        state.role = message.role;\n        state.url = relaySocketUrl(message.relay, message.room, message.role);\n        open();\n        startLoop();\n        return;\n      case "attach":\n        state.reader = new RingReader(message.memory, message.layout, message.readBase, { advanceGet: message.advanceGet });\n        state.writer = new RingWriter(message.memory, message.layout, message.writeBase, message.writePort);\n        state.reading = Boolean(message.reading);\n        state.injecting = Boolean(message.injecting);\n        state.dropOutOfBand = message.dropOutOfBand ?? [];\n        return;\n      case "read":\n        state.reader.skipToEnd();\n        state.dropUntilConnect = Boolean(message.dropUntilConnect);\n        state.reading = true;\n        return;\n      case "inject":\n        state.injecting = Boolean(message.on);\n        if (message.clearInbox) state.inbox.length = 0;\n        return;\n      case "send":\n        sendText(message.message);\n        return;\n      case "close":\n        state.closed = true;\n        try {\n          state.socket?.close(1e3, "bye");\n        } catch {\n        }\n        return;\n    }\n  };\n  function open() {\n    if (state.closed) return;\n    let socket;\n    try {\n      socket = new WebSocket(state.url);\n    } catch (error) {\n      post({ type: "socket", state: "error", reason: String(error?.message ?? error) });\n      return reconnect();\n    }\n    socket.binaryType = "arraybuffer";\n    state.socket = socket;\n    post({ type: "socket", state: "connecting" });\n    socket.onopen = () => {\n      state.retries = 0;\n      post({ type: "socket", state: "open" });\n    };\n    socket.onmessage = (event) => {\n      if (typeof event.data === "string") {\n        const message = parseControl(event.data);\n        if (message) control(message);\n        return;\n      }\n      const packets = decodePackets(event.data);\n      if (!packets) return;\n      state.stats.framesIn += 1;\n      for (const packet of packets) {\n        state.stats.packetsIn += 1;\n        state.stats.bytesIn += packet.byteLength;\n        const command = outOfBandCommand(packet);\n        if (command && state.dropOutOfBand.includes(command)) continue;\n        state.inbox.push(packet);\n      }\n      if (state.inbox.length > INBOX_LIMIT) {\n        state.stats.dropped += state.inbox.length - INBOX_LIMIT;\n        state.inbox.splice(0, state.inbox.length - INBOX_LIMIT);\n      }\n      pump();\n    };\n    socket.onclose = (event) => {\n      if (state.socket === socket) state.socket = null;\n      post({ type: "socket", state: "closed", code: event.code, reason: event.reason });\n      if (event.code === 4001) {\n        state.closed = true;\n        return;\n      }\n      reconnect();\n    };\n    socket.onerror = () => {\n    };\n  }\n  function reconnect() {\n    if (state.closed) return;\n    const delay = Math.min(5e3, 250 * 2 ** state.retries);\n    state.retries += 1;\n    setTimeout(open, delay);\n  }\n  function control(message) {\n    if (message.t === "ping") {\n      sendText({ t: "pong", ts: message.ts });\n      return;\n    }\n    if (message.t === "pong") {\n      if (typeof message.ts === "number") state.stats.rtt = Math.max(0, performance.now() - message.ts);\n      return;\n    }\n    post({ type: "control", message });\n  }\n  function sendText(message) {\n    const socket = state.socket;\n    if (!socket || socket.readyState !== WebSocket.OPEN) return false;\n    socket.send(JSON.stringify(message));\n    return true;\n  }\n  function flush(now) {\n    if (!state.outbox.length) return;\n    const socket = state.socket;\n    if (!socket || socket.readyState !== WebSocket.OPEN) {\n      state.stats.dropped += state.outbox.length;\n    } else {\n      let batch = [], size = 4;\n      const send = () => {\n        if (!batch.length) return;\n        socket.send(encodePackets(batch));\n        state.stats.framesOut += 1;\n        batch = [];\n        size = 4;\n      };\n      for (const packet of state.outbox) {\n        if (size + 2 + packet.byteLength > MAX_BINARY_BYTES) send();\n        batch.push(packet);\n        size += 2 + packet.byteLength;\n        state.stats.packetsOut += 1;\n        state.stats.bytesOut += packet.byteLength;\n      }\n      send();\n    }\n    state.outbox.length = 0;\n    state.outboxBytes = 0;\n    state.lastFlush = now;\n  }\n  function pump() {\n    const now = performance.now();\n    if (state.reader && state.reading) {\n      let packets = state.reader.poll([]);\n      state.stats.lost = state.reader.lost;\n      if (state.dropUntilConnect && packets.length) {\n        const first = packets.findIndex((packet) => outOfBandCommand(packet) === "connect");\n        packets = first < 0 ? [] : packets.slice(first);\n        if (first >= 0) state.dropUntilConnect = false;\n      }\n      for (const packet of packets) {\n        state.outbox.push(packet);\n        state.outboxBytes += packet.byteLength;\n      }\n    }\n    if (state.outbox.length && now - state.lastFlush >= FLUSH_MS) flush(now);\n    if (state.writer && state.injecting) {\n      while (state.inbox.length && state.writer.push(state.inbox[0])) state.inbox.shift();\n    }\n  }\n  async function startLoop() {\n    if (state.looping) return;\n    state.looping = true;\n    const tick = new Int32Array(new SharedArrayBuffer(4));\n    let lastPing = 0, lastStats = 0;\n    while (!state.closed) {\n      pump();\n      const now = performance.now();\n      if (now - lastPing >= PING_MS) {\n        lastPing = now;\n        sendText({ t: "ping", ts: now });\n      }\n      if (now - lastStats >= 1e3) {\n        lastStats = now;\n        post({ type: "stats", stats: { ...state.stats, inbox: state.inbox.length } });\n      }\n      const wait = Atomics.waitAsync ? Atomics.waitAsync(tick, 0, 0, POLL_MS) : null;\n      if (wait?.async) await wait.value;\n      else await new Promise((resolve) => setTimeout(resolve, POLL_MS));\n    }\n  }\n})();\n'], { type: "text/javascript" }));
+    const url = URL.createObjectURL(new Blob([`(${pumpWorker.toString()})();\n`], { type: "text/javascript" }));
     const worker = new Worker(url, { name: "bo1z-coop-pump" });
     worker.onmessage = (event) => {
       const message = event.data;
       if (message.type === "socket") {
         coop.socket = message.state;
-        if (message.state !== "open") coop.peer = false;
+        if (message.state !== "open") {
+          coop.peer = false;
+          for (const guest of coop.guests.values()) {
+            if (guest.present) guest.leftAt = Date.now();
+            guest.present = false;
+          }
+        }
         if (message.state === "closed" && message.code === 4001) coop.error = "This room was opened in another tab or window.";
+        if (message.state === "closed" && message.code === 4004) coop.error = `This game is full (${MAX_GUESTS + 1} players).`;
         coop.note(`relay ${message.state}${message.code ? ` ${message.code}` : ""}`);
       } else if (message.type === "control") {
         onControl(coop, message.message);
@@ -1155,20 +1586,40 @@ input:focus { border-color: #999; }
     worker.onerror = (event) => {
       coop.error = `Co-op worker failed: ${event.message}`;
     };
-    worker.postMessage({ type: "connect", relay: coop.relay, room: coop.room, role: coop.mode });
+    worker.postMessage({ type: "connect", relay: coop.relay, room: coop.room, role: coop.mode, guestId: coop.guestId });
     return worker;
   }
   function send(coop, message) {
     coop.pump?.postMessage({ type: "send", message });
   }
   function onControl(coop, message) {
+    const host = coop.mode === "host";
     switch (message.t) {
       case "welcome":
-        coop.peer = Boolean(message.peer);
         coop.peerSeenAt = Date.now();
-        if (coop.peer) greet(coop);
+        if (host) {
+          for (const seat of Array.isArray(message.guests) ? message.guests : []) guestJoined(coop, seat);
+          coop.peer = anyGuest(coop);
+        } else {
+          coop.seat = Number.isInteger(message.seat) ? message.seat : null;
+          coop.peer = Boolean(message.peer);
+          if (coop.peer) greet(coop);
+        }
         return;
       case "peer":
+        if (host) {
+          if (!validSeat(message.seat)) return;
+          if (message.present) guestJoined(coop, message.seat);
+          else {
+            const guest = guestRecord(coop, message.seat);
+            guest.present = false;
+            guest.leftAt = Date.now();
+            guest.pause = false;
+            coop.note(`player ${message.seat + 1} left the room`);
+          }
+          coop.peer = anyGuest(coop);
+          return;
+        }
         coop.peer = Boolean(message.present);
         if (coop.peer) {
           coop.peerSeenAt = Date.now();
@@ -1177,35 +1628,59 @@ input:focus { border-color: #999; }
           coop.peerLeftAt = Date.now();
           coop.remotePause = false;
         }
-        coop.note(`other player ${coop.peer ? "joined the room" : "left the room"}`);
+        coop.note(`host ${coop.peer ? "joined the room" : "left the room"}`);
         return;
       case "error":
         coop.note(`relay error ${message.code}`);
+        if (message.code === "room_full") coop.error = `This game is full (${MAX_GUESTS + 1} players).`;
         return;
       case "info":
-        if (coop.mode === "guest") onHostInfo(coop, message);
+        if (!host) onHostInfo(coop, message);
         return;
       case "state":
-        coop.peerState = message;
+        if (host) {
+          if (validSeat(message.from)) guestRecord(coop, message.from).state = message;
+        } else coop.peerState = message;
         return;
       case "pause":
-        coop.remotePause = Boolean(message.on);
+        if (host) {
+          if (validSeat(message.from)) guestRecord(coop, message.from).pause = Boolean(message.on);
+        } else coop.remotePause = Boolean(message.on);
         return;
       case "pos":
-        if (Array.isArray(message.o) && message.o.length === 3 && message.o.every(Number.isFinite)) {
+        if (!host && Array.isArray(message.o) && message.o.length === 3 && message.o.every(Number.isFinite)) {
           coop.hostPos = { origin: message.o, at: Date.now() };
         }
         return;
     }
   }
+  var validSeat = (seat) => Number.isInteger(seat) && seat >= 1 && seat <= MAX_GUESTS;
+  function guestRecord(coop, seat) {
+    let guest = coop.guests.get(seat);
+    if (!guest) {
+      guest = { seat, present: false, state: null, pause: false, slot: null, leftAt: 0, lastKickAt: 0, sentState: null, sentPause: null };
+      coop.guests.set(seat, guest);
+    }
+    return guest;
+  }
+  function guestJoined(coop, seat) {
+    if (!validSeat(seat)) return;
+    const guest = guestRecord(coop, seat);
+    if (!guest.present) coop.note(`player ${seat + 1} joined the room`);
+    guest.present = true;
+    guest.state = null;
+    guest.pause = false;
+    guest.sentState = null;
+    guest.sentPause = null;
+    sendInfo(coop, seat);
+  }
+  var anyGuest = (coop) => [...coop.guests.values()].some((guest) => guest.present);
   function greet(coop) {
-    if (coop.mode === "host") {
-      sendInfo(coop);
-      coop.lastStateKey = null;
-    } else send(coop, { t: "state", phase: coop.phase, v: VERSION });
+    if (coop.mode === "host") return;
+    send(coop, { t: "state", phase: coop.phase, v: VERSION });
     send(coop, { t: "pause", on: Boolean(coop.menuOpen) });
   }
-  function sendInfo(coop) {
+  function sendInfo(coop, to) {
     const zone = coop.zone ?? currentZone();
     send(coop, {
       t: "info",
@@ -1214,7 +1689,8 @@ input:focus { border-color: #999; }
       zone,
       slug: MAP_SLUGS[zone] ?? null,
       horde: currentHorde(),
-      gameArgs: coop.gameArgs
+      gameArgs: coop.gameArgs,
+      ...to ? { to } : {}
     });
   }
   function onHostInfo(coop, info) {
@@ -1224,29 +1700,38 @@ input:focus { border-color: #999; }
     coop.phase = "following";
     go(`${BASE}${info.slug}?coop=join&room=${coop.room}${info.horde ? "&horde=1" : ""}${coop.relayParam}`);
   }
+  // The host's own client; guests take 1000 + 10000 * (seat - 1) + 1..9999. The server tells clients apart by qport
+  // (every loopback address looks the same to it), and refuses a connect whose qport an active client already uses.
+  var HOST_QPORT = 7;
+  function guestQport(seat) {
+    return 1e3 + 1e4 * (seat - 1) + 1 + Math.floor(Math.random() * 9999);
+  }
   function setupHost(coop, Module, args) {
     const mem = new EngineMemory(Module, coop.build);
     if (!mem.mailboxesClear()) throw new Error("Unexpected engine memory: co-op is off.");
-    const rings = mem.allocateRemoteRings();
+    const rings = mem.allocateRemoteRings(MAX_GUESTS);
     mem.setInboundRing(rings.inPort);
     coop.mem = mem;
     coop.rings = rings;
+    insertBeforeDevmap(args, ["+setqport", String(HOST_QPORT)]);
     if (coop.uncapped) insertBeforeDevmap(args, ["+set", "kisak_web_uncapped", "1", "+set", "com_maxfps", String(coop.refreshRate)]);
     coop.zone = devmapZone(args);
     coop.gameArgs = gameDvars(args);
+    const ports = {};
+    for (const [seat, ring] of Object.entries(rings.seats)) ports[seat] = ring.port;
     coop.pump.postMessage({
       type: "attach",
       memory: mem.memory,
       layout: coop.build,
-      readBase: rings.out.base,
+      reads: Object.entries(rings.seats).map(([seat, ring]) => ({ seat: Number(seat), base: ring.out.base })),
       writeBase: rings.in.base,
-      writePort: rings.port,
+      ports,
       advanceGet: true,
       reading: true,
       injecting: true,
       dropOutOfBand: ["rcon"]
     });
-    coop.note(`host rings: out ${rings.port} in ${rings.inPort}`);
+    coop.note(`host rings: out ${Object.values(ports).join(", ")} in ${rings.inPort}`);
     if (coop.peer) sendInfo(coop);
   }
   async function setupGuest(coop, Module, args) {
@@ -1264,11 +1749,11 @@ input:focus { border-color: #999; }
       type: "attach",
       memory: mem.memory,
       layout: coop.build,
-      readBase: ringOffsets(coop.build, 1).base,
       // our client -> server ring: forwarded to the host once connected
-      writeBase: ringOffsets(coop.build, 0).base,
+      reads: [{ seat: 0, base: ringOffsets(coop.build, 1).base }],
       // server -> our client ring: the host's packets go here
-      writePort: 0,
+      writeBase: ringOffsets(coop.build, 0).base,
+      ports: { 0: 0 },
       advanceGet: true,
       reading: false,
       injecting: false
@@ -1285,54 +1770,96 @@ input:focus { border-color: #999; }
     }
     coop.panel.render(view(coop));
   }
+  var GUEST_CONNECTING = ["freezing", "connect", "challenging", "joining"];
+  var JOIN_TURN_MS = 6e4;
+  var STATE_REPEAT_MS = 2e3;
   function hostTick(coop) {
     const screen = window.five?.screen;
     const mem = coop.mem;
+    const now = Date.now();
     const ready = Boolean(mem) && (screen === "ready" || screen === "playing");
-    const slot = mem && coop.rings ? mem.serverClients().find((c) => c.loopback && c.port === coop.rings.port) ?? null : null;
-    coop.guestSlot = slot;
-    const state = { t: "state", ready, slot: slot?.state ?? 0, screen };
-    const key = JSON.stringify(state);
-    if (coop.peer && key !== coop.lastStateKey) {
-      coop.lastStateKey = key;
-      send(coop, state);
+    const clients = mem && coop.rings ? mem.serverClients() : [];
+    for (let seat = 1; seat <= MAX_GUESTS; seat += 1) {
+      const port = coop.rings?.seats[seat]?.port;
+      const slot = port ? clients.find((c) => c.loopback && c.port === port) ?? null : null;
+      if (slot || coop.guests.has(seat)) guestRecord(coop, seat).slot = slot;
     }
-    if (!coop.peer) coop.lastStateKey = null;
-    coop.gate = screen === "ready" && coop.peer && !coop.startAlone && !(slot && slot.state === CLIENT_STATE.active);
-    const guestJoining = ["waiting-host", "freezing", "connect", "challenging", "joining"].includes(coop.peerState?.phase);
-    if (mem && coop.peer && guestJoining && screen === "ready" && !coop.introReleased && mem.int(coop.build.browser.introState) === 1) {
+    const guests = [...coop.guests.values()];
+    const present = guests.filter((g) => g.present);
+    const active = (g) => g.slot?.state === CLIENT_STATE.active;
+    const phase = (g) => g.state?.phase;
+
+    // One guest connects at a time: the server matches connects by qport and port only, so two at once can collide.
+    const turn = coop.joinSeat ? coop.guests.get(coop.joinSeat) : null;
+    if (turn && (!turn.present || ["connected", "ended", "failed"].includes(phase(turn)) || now - coop.joinGrantedAt > JOIN_TURN_MS)) {
+      coop.note(`player ${turn.seat + 1} join turn over (${turn.present ? phase(turn) : "left"})`);
+      coop.joinSeat = null;
+    }
+    if (!coop.joinSeat && ready) {
+      const next = present.find((g) => ["waiting-host", "connect"].includes(phase(g)));
+      if (next) {
+        coop.joinSeat = next.seat;
+        coop.joinGrantedAt = now;
+        coop.note(`player ${next.seat + 1} may join`);
+      }
+    }
+    for (const g of present) {
+      const state = { t: "state", to: g.seat, ready, slot: g.slot?.state ?? 0, screen, turn: coop.joinSeat === g.seat };
+      const key = JSON.stringify(state);
+      if (key !== g.sentState || now - (g.sentStateAt ?? 0) > STATE_REPEAT_MS) {
+        g.sentState = key;
+        g.sentStateAt = now;
+        send(coop, state);
+      }
+    }
+
+    const waiting = present.filter((g) => !active(g) && !["ended", "failed"].includes(phase(g)));
+    coop.gate = screen === "ready" && !coop.startAlone && waiting.length > 0;
+    const joining = present.some((g) => ["waiting-host", ...GUEST_CONNECTING].includes(phase(g)));
+    if (mem && joining && screen === "ready" && !coop.introReleased && mem.int(coop.build.browser.introState) === 1) {
       coop.introReleased = true;
       mem.Module._KB_Input?.(7, 1, 0);
-      coop.note("released the start hold so player 2 can join");
+      coop.note("released the start hold so the other players can join");
     }
-    const guestActive = slot?.state === CLIENT_STATE.active;
-    if (mem && coop.peer && !guestActive) {
+    const menuOpen = Boolean(mem?.menuOpen()) && screen === "playing";
+    coop.menuOpen = menuOpen;
+    const linked = present.filter((g) => active(g) && phase(g) === "connected");
+    // Somebody connecting needs the server running; a pause waits until they are in.
+    const connecting = present.some((g) => !active(g) && GUEST_CONNECTING.includes(phase(g)));
+    if (mem) pauseHost(coop, linked.length > 0 && !connecting && (menuOpen || linked.some((g) => g.pause)), menuOpen);
+    if (mem && !coop.pausedApplied && present.some((g) => !active(g))) {
       if (mem.dvarInt("clPaused")) mem.setDvarInt("clPaused", 0);
       if (mem.dvarInt("svPaused")) mem.setDvarInt("svPaused", 0);
     }
-    const menuOpen = Boolean(mem?.menuOpen()) && screen === "playing";
-    if (menuOpen !== coop.menuOpen) {
-      coop.menuOpen = menuOpen;
-      if (coop.peer) send(coop, { t: "pause", on: menuOpen });
+    // Each guest is paused by the host's menu or by any other guest's.
+    for (const g of present) {
+      const on = menuOpen || linked.some((other) => other !== g && other.pause);
+      if (on !== g.sentPause) {
+        g.sentPause = on;
+        send(coop, { t: "pause", on, to: g.seat });
+      }
     }
-    const guestLinked = coop.peer && coop.peerState?.phase === "connected";
-    if (mem) pauseHost(coop, guestActive && guestLinked && (menuOpen || coop.remotePause), menuOpen);
     const view2 = latestView();
-    if (coop.peer && guestActive && view2 && view2.ms !== coop.sentViewMs) {
+    if (present.some(active) && view2 && view2.ms !== coop.sentViewMs) {
       coop.sentViewMs = view2.ms;
       send(coop, { t: "pos", o: view2.origin, a: view2.angles });
     }
-    const guestPhase = coop.peerState?.phase;
-    const stale = slot && slot.state >= CLIENT_STATE.connected && (coop.peer && guestPhase && !["challenging", "joining", "connected"].includes(guestPhase) || !coop.peer && coop.peerLeftAt && Date.now() - coop.peerLeftAt > KICK_AFTER_MS);
-    if (stale && Date.now() - (coop.lastKickAt ?? 0) > 5e3 && mem.command(`clientkick ${slot.slot}`)) {
-      coop.lastKickAt = Date.now();
-      coop.note(`removed player 2 (slot ${slot.slot}, ${coop.peer ? guestPhase : "left"})`);
+    for (const g of guests) {
+      const slot = g.slot;
+      const stale = slot && slot.state >= CLIENT_STATE.connected && (g.present && phase(g) && !["challenging", "joining", "connected"].includes(phase(g)) || !g.present && g.leftAt && now - g.leftAt > KICK_AFTER_MS);
+      if (!stale) g.kicks = 0;
+      // Few and spaced: a kick the server has not run yet must not hit whoever takes the slot next.
+      if (stale && (g.kicks ?? 0) < 4 && now - g.lastKickAt > 15e3 && mem.command(`clientkick ${slot.slot}`)) {
+        g.lastKickAt = now;
+        g.kicks = (g.kicks ?? 0) + 1;
+        coop.note(`removed player ${g.seat + 1} (slot ${slot.slot}, ${g.present ? phase(g) : "left"})`);
+      }
     }
   }
   function pauseHost(coop, paused, menuOpen) {
     const mem = coop.mem;
     if (paused) {
-      if (!coop.pausedApplied) coop.note(`paused${menuOpen ? "" : " by player 2"}`);
+      if (!coop.pausedApplied) coop.note(`paused${menuOpen ? "" : " by another player"}`);
       mem.setFreeze(true);
       if (!mem.dvarInt("svPaused")) mem.setDvarInt("svPaused", 1);
       if (!mem.dvarInt("clPaused")) mem.setDvarInt("clPaused", 1);
@@ -1357,6 +1884,7 @@ input:focus { border-color: #999; }
   var SPAWN_CHECK_MS = 2e3;
   var SPAWN_RETRIES = 2;
   function followHost(coop) {
+    if (coop.peerState?.screen !== "playing") return;
     const view2 = latestView();
     if (view2 && view2.ms !== coop.lastViewMs) {
       const previous = coop.lastViewOrigin;
@@ -1428,12 +1956,14 @@ input:focus { border-color: #999; }
       coop.phase = "ended";
       coop.note("engine stopped");
     }
+    if (coop.mem && ["freezing", "connect"].includes(coop.phase)) coop.mem.clearLastPacketTime();
     if (coop.mem && GUEST_JOINING.includes(coop.phase)) {
       if (coop.mem.dvarInt("clPaused")) coop.mem.setDvarInt("clPaused", 0);
       if (coop.mem.dvarInt("svPaused")) coop.mem.setDvarInt("svPaused", 0);
     }
-    if (coop.peer && coop.phase !== coop.sentPhase) {
+    if (coop.peer && (coop.phase !== coop.sentPhase || Date.now() - (coop.sentPhaseAt ?? 0) > STATE_REPEAT_MS)) {
       coop.sentPhase = coop.phase;
+      coop.sentPhaseAt = Date.now();
       send(coop, { t: "state", phase: coop.phase, v: VERSION });
     }
     if (!coop.peer) coop.sentPhase = null;
@@ -1445,7 +1975,9 @@ input:focus { border-color: #999; }
         if (screen === "ready" || screen === "playing") coop.phase = "waiting-host";
         break;
       case "waiting-host":
-        if (hostReady) {
+        // The host lets one player connect at a time. Freezing starts our client's server-timeout clock, so wait
+        // for the turn first.
+        if (hostReady && coop.peerState?.turn && validSeat(coop.seat)) {
           mem.setFreeze(true);
           coop.freezeAt = Date.now();
           coop.phase = "freezing";
@@ -1468,7 +2000,8 @@ input:focus { border-color: #999; }
         }
         coop.connectWaitAt ??= Date.now();
         if ((coop.peerState?.slot ?? 0) >= CLIENT_STATE.connected && Date.now() - coop.connectWaitAt < 2e4) break;
-        if (mem.command("connect LOCALHOST")) {
+        coop.qport ??= guestQport(coop.seat);
+        if (mem.command(`setqport ${coop.qport};connect LOCALHOST`)) {
           coop.joinedLate = coop.peerState?.screen === "playing";
           coop.connectAt = Date.now();
           coop.phase = "challenging";
@@ -1507,6 +2040,9 @@ input:focus { border-color: #999; }
           mem.command("disconnect");
         } else {
           pauseGuest(coop, screen);
+          // In the lobby the host may wait minutes for the others; a slow moment here must not time us out (the
+          // engine skips its timeout while lastPacketTime is 0). The relay still tells us if the host leaves.
+          if (coop.peerState?.screen !== "playing") mem.clearLastPacketTime();
           followHost(coop);
         }
         break;
@@ -1520,7 +2056,7 @@ input:focus { border-color: #999; }
     if (coop.error) blocks.push({ kind: "text", cls: "error", text: coop.error });
     if (coop.notice) blocks.push({ kind: "text", cls: "muted small", text: coop.notice });
     if (!coop.mode) {
-      blocks.push({ kind: "text", cls: "muted", text: "Play zombies with a friend: one hosts, the other joins with the invite link. Both need this extension." });
+      blocks.push({ kind: "text", cls: "muted", text: "Play zombies with up to 3 friends: one hosts, the others join with the invite link. Everyone needs this extension." });
       blocks.push({ kind: "buttons", buttons: [{ act: "host", label: "Host a game", primary: true }] });
       blocks.push({ kind: "input", field: "join", placeholder: "Room code or invite link", act: "join", label: "Join" });
       blocks.push(...controllerBlocks(coop));
@@ -1533,25 +2069,34 @@ input:focus { border-color: #999; }
     let tone = coop.error ? "bad" : "wait";
     let pill = "";
     if (coop.mode === "host") {
-      const slot = coop.guestSlot;
-      const guestJoining = ["freezing", "connect", "challenging", "joining"].includes(coop.peerState?.phase);
-      const gone = ["ended", "failed"].includes(coop.peerState?.phase);
-      const p2 = !coop.peer ? slot ? "reconnecting\u2026" : "not here yet" : gone ? "disconnected (they can rejoin)" : !slot ? guestJoining ? "joining\u2026" : "loading the map\u2026" : slot.state === CLIENT_STATE.active ? "in the game" : "joining\u2026";
-      if (slot?.state === CLIENT_STATE.active && coop.peer) tone = "ok";
-      blocks.push({ kind: "text", text: "You are hosting. Send this invite link to player 2:" });
+      const active = (g) => g.slot?.state === CLIENT_STATE.active;
+      const lines = [];
+      let inGame = 0, anyWaiting = false;
+      for (let seat = 1; seat <= MAX_GUESTS; seat += 1) {
+        const g = coop.guests.get(seat);
+        const phase = g?.state?.phase;
+        const slot = g?.slot;
+        const gone = ["ended", "failed"].includes(phase);
+        const status = !g ? "free seat" : !g.present ? slot ? "reconnecting\u2026" : "left" : gone ? "disconnected (they can rejoin)" : active(g) ? "in the game" : coop.joinSeat === seat || slot ? "joining\u2026" : phase === "waiting-host" && coop.mem ? "waiting for their turn\u2026" : GUEST_CONNECTING.includes(phase) ? "joining\u2026" : "loading the map\u2026";
+        if (g?.present && active(g)) inGame += 1;
+        if (g?.present && !active(g) && !gone) anyWaiting = true;
+        lines.push([`Player ${seat + 1}`, status]);
+      }
+      if (inGame > 0 && !anyWaiting) tone = "ok";
+      blocks.push({ kind: "text", text: `You are hosting. Send this invite link to up to ${MAX_GUESTS} friends:` });
       blocks.push({ kind: "code", text: coop.room });
       blocks.push({ kind: "buttons", buttons: [{ act: "copy", label: Date.now() - coop.copiedAt < 2e3 ? "Copied!" : "Copy invite link", primary: true }] });
-      blocks.push({ kind: "lines", lines: [["Relay", relay], ["Player 2", p2], ["Ping", rtt]] });
+      blocks.push({ kind: "lines", lines: [["Relay", relay], ...lines, ["Ping", rtt]] });
       if (!coop.mem && screen !== "loading" && screen !== "download") {
-        blocks.push({ kind: "text", cls: "muted small", text: "Pick a map. Player 2 follows you to it." });
+        blocks.push({ kind: "text", cls: "muted small", text: "Pick a map. The other players follow you to it." });
       } else if (coop.gate) {
-        blocks.push({ kind: "text", text: "Player 2 is on the way. Your start waits for them, so they spawn with you." });
+        blocks.push({ kind: "text", text: "Players are on the way. Your start waits for them, so everyone spawns together." });
         blocks.push({ kind: "buttons", buttons: [{ act: "startNow", label: "Start now" }] });
-      } else if (!(slot?.state === CLIENT_STATE.active)) {
-        blocks.push({ kind: "text", cls: "muted small", text: "If you start before player 2 is in, they watch until the next round (the BO1 rule for latecomers)." });
+      } else if (anyWaiting) {
+        blocks.push({ kind: "text", cls: "muted small", text: "Players who join after the start watch until the next round (the BO1 rule for latecomers)." });
       }
-      if (coop.pausedApplied) blocks.push({ kind: "text", text: coop.menuOpen ? "Paused. Player 2 is paused too." : "Paused by player 2." });
-      pill = coop.pausedApplied ? `Co-op \xB7 ${coop.menuOpen ? "paused" : "paused by P2"}` : `Co-op \xB7 P2 ${slot?.state === CLIENT_STATE.active && coop.peer ? "in" : "not in"} \xB7 ${rtt}`;
+      if (coop.pausedApplied) blocks.push({ kind: "text", text: coop.menuOpen ? "Paused. Everyone is paused too." : "Paused by another player." });
+      pill = coop.pausedApplied ? `Co-op \xB7 ${coop.menuOpen ? "paused" : "paused by a player"}` : `Co-op \xB7 ${inGame + 1}/${MAX_GUESTS + 1} in \xB7 ${rtt}`;
     } else {
       if (coop.inviteRelay && coop.inviteRelay !== coop.relay) {
         blocks.push({ kind: "text", text: `This invite uses another relay: ${new URL(coop.inviteRelay).hostname}. Switch to it to join.` });
@@ -1580,7 +2125,8 @@ input:focus { border-color: #999; }
       if (coop.joinedLate && ["joining", "connected"].includes(coop.phase)) {
         blocks.push({ kind: "text", cls: "muted small", text: "The host had already started, so you watch until the next round, then spawn (the BO1 rule for latecomers)." });
       }
-      blocks.push({ kind: "lines", lines: [["Room", coop.room], ["Relay", relay], ["Host", coop.peer ? "here" : "not here"], ["Ping", rtt]] });
+      if (coop.phase === "waiting-host" && coop.peerState?.ready && !coop.peerState.turn) blocks.push({ kind: "text", cls: "muted small", text: "Another player is joining; you are next." });
+      blocks.push({ kind: "lines", lines: [["Room", coop.room], ["You", validSeat(coop.seat) ? `player ${coop.seat + 1}` : "\u2013"], ["Relay", relay], ["Host", coop.peer ? "here" : "not here"], ["Ping", rtt]] });
       if (coop.phase === "connected" && screen === "ready") blocks.push({ kind: "text", cls: "muted small", text: "Click the game to play." });
       if (coop.phase === "connected" && coop.pausedApplied) blocks.push({ kind: "text", text: coop.menuOpen ? "Paused. The host is paused too." : "Paused by the host." });
       if (coop.phase === "connected" && coop.hostPos) blocks.push({ kind: "buttons", buttons: [{ act: "goToHost", label: "Go to player 1" }] });
@@ -1605,20 +2151,14 @@ input:focus { border-color: #999; }
   var CREDITS = { kind: "text", cls: "muted small", text: "Thanks to MisaDev4 (vel.gg, the browser BO1 Zombies) \xB7 Co-op extension by invictus841" };
   function relayBlocks(coop) {
     const own = coop.relay !== DEFAULT_RELAY;
-    const blocks = [{ kind: "lines", lines: [["Relay", own ? `your own (${new URL(coop.relay).hostname})` : "shared"]] }];
-    if (!own) blocks.push({ kind: "text", cls: "muted small", text: "Free, about 6 hours of play per day in total, shared by everyone who uses this extension (not 6 hours each). When it is used up, co-op stops until the daily reset." });
-    if (!own) blocks.push({
-      kind: "link",
-      title: "Wanna host your own relay, with your own daily allowance not shared with anyone? Easy 5-minute setup:",
-      text: "how to set it up",
-      href: "https://github.com/invictus841/bo1z-coop-extension#the-relay-shared-by-default-or-your-own"
-    });
+    const blocks = [{ kind: "lines", lines: [["Relay", own ? `custom (${new URL(coop.relay).hostname})` : "the group's (4P)"]] }];
+    if (!own) blocks.push({ kind: "text", cls: "muted small", text: "Cloudflare's free plan: a daily allowance shared by everyone using this relay. When it is used up, co-op stops until the daily reset." });
     const usage = usageBlock(coop);
     if (usage) blocks.push(usage);
     if (coop.editRelay) {
       blocks.push({ kind: "input", field: "relay", placeholder: "https://your-relay.workers.dev", act: "saveRelay", label: "Save", value: own ? coop.relay : "" });
       blocks.push({ kind: "text", cls: "muted small", text: "Both players must use the same relay. Your invite links carry it, so your friend can switch with one click." });
-      blocks.push({ kind: "buttons", buttons: [{ act: "defaultRelay", label: "Use the shared relay" }, { act: "editRelay", label: "Cancel" }] });
+      blocks.push({ kind: "buttons", buttons: [{ act: "defaultRelay", label: "Use the default relay" }, { act: "editRelay", label: "Cancel" }] });
     } else {
       blocks.push({ kind: "buttons", buttons: [{ act: "editRelay", label: "Change relay" }] });
     }
@@ -1628,8 +2168,7 @@ input:focus { border-color: #999; }
     const usage = coop.usage;
     if (!usage) return null;
     const resets = new Date(usage.resetsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const hoursLeft = Math.max(0, (1 - usage.fraction) * 6);
-    const label = usage.fraction >= 1 ? `Used up for today (estimate). Resets at ${resets}.` : `Today: ${Math.round(usage.fraction * 100)}% used, about ${hoursLeft < 1 ? "less than 1" : hoursLeft.toFixed(0)} h of play left for everyone (estimate). Resets at ${resets}.`;
+    const label = usage.fraction >= 1 ? `Used up for today (estimate). Resets at ${resets}.` : `Today: ${Math.round(usage.fraction * 100)}% of the relay's free allowance used (estimate). Resets at ${resets}.`;
     return { kind: "meter", fraction: usage.fraction, label };
   }
   function setAim(coop, level) {
@@ -1648,6 +2187,19 @@ input:focus { border-color: #999; }
     try {
       localStorage.setItem(key, value);
     } catch {
+    }
+  }
+  /** Random per guest and room, kept for the tab's life: a reload gets the same seat (and engine port) back. */
+  function guestIdFor(room) {
+    const key = `bo1z-coop-guest:${room}`;
+    try {
+      const saved = sessionStorage.getItem(key);
+      if (saved && /^[a-z0-9]{8,32}$/.test(saved)) return saved;
+      const id = createGuestId();
+      sessionStorage.setItem(key, id);
+      return id;
+    } catch {
+      return createGuestId();
     }
   }
   function go(url) {

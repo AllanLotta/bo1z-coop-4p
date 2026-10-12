@@ -1,15 +1,22 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  GUEST_ID_PATTERN,
   MAX_BINARY_BYTES,
+  MAX_GUESTS,
   MAX_TEXT_BYTES,
   PROTOCOL_VERSION,
   ROLES,
   ROOM_ID_PATTERN,
+  decodePackets,
+  decodeSeatPackets,
+  encodePackets,
+  encodeSeatPackets,
   isPeerMessage,
   parseControl,
 } from "../../shared/protocol.js";
 
 const REPLACED_CLOSE_CODE = 4001;
+const ROOM_FULL_CLOSE_CODE = 4004;
 
 // Daily usage estimate (GET /usage): Cloudflare's free plan allows 100,000 Durable Object requests a day, and bills
 // incoming WebSocket messages at 20 per request. Each room reports what it carried to one shared counter.
@@ -21,11 +28,9 @@ const PROTOCOL_CLOSE_CODE = 4003;
 const TOO_BIG_CLOSE_CODE = 1009;
 
 // Token buckets per socket. Excess binary frames are dropped silently, like UDP
-// packets; the engine's netchan already copes with loss.
-const BINARY_RATE = 400;
-const BINARY_BURST = 800;
-const TEXT_RATE = 20;
-const TEXT_BURST = 40;
+// packets; the engine's netchan already copes with loss. The host speaks for up to three guests.
+const GUEST_LIMITS = { binaryRate: 400, binaryBurst: 800, textRate: 20, textBurst: 40 };
+const HOST_LIMITS = { binaryRate: 1200, binaryBurst: 2400, textRate: 80, textBurst: 160 };
 
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
@@ -98,16 +103,17 @@ export default {
     // Set by this Worker only; never trusted from the client.
     forwardedHeaders.set("x-bo1-room-id", roomId);
     forwardedHeaders.set("x-bo1-role", role);
+    forwardedHeaders.set("x-bo1-guest-id", role === "guest" ? (url.searchParams.get("id") ?? "") : "");
     const id = env.ROOM_RELAY.idFromName(`bo1-coop:${roomId}`);
     return env.ROOM_RELAY.get(id).fetch(new Request(request, { headers: forwardedHeaders }));
   },
 };
 
 /**
- * A room of two: one host, one guest. The relay forwards binary packet batches
- * and peer control messages between them and never inspects game data. A new
- * connection for a role replaces the old one (a page reload or navigation).
- * Uses the hibernation API; roles live in socket tags and attachments.
+ * A room of one host and up to MAX_GUESTS guests. The relay forwards packet batches and peer control messages
+ * between the host and each guest (guests never talk to each other) and never inspects game data. A new connection
+ * for the host, or for a guest id already connected, replaces the old one (a page reload or navigation).
+ * Uses the hibernation API; role, seat and guest id live in socket tags and attachments.
  */
 export class RoomRelay extends DurableObject {
   constructor(ctx, env) {
@@ -120,41 +126,88 @@ export class RoomRelay extends DurableObject {
   async fetch(request) {
     const roomId = request.headers.get("x-bo1-room-id");
     const role = request.headers.get("x-bo1-role");
+    const guestId = request.headers.get("x-bo1-guest-id");
     if (!roomId || !ROOM_ID_PATTERN.test(roomId) || !ROLES.includes(role) || !isWebSocketUpgrade(request)) {
       return json({ error: "invalid_room_request" }, 400);
     }
+    if (role === "guest" && !GUEST_ID_PATTERN.test(guestId ?? "")) return json({ error: "invalid_guest_id" }, 400);
 
-    for (const old of this.socketsFor(role)) {
+    const [client, server] = Object.values(new WebSocketPair());
+    let seat = 0;
+    if (role === "guest") {
+      seat = await this.pickSeat(guestId);
+      if (!seat) {
+        server.accept();
+        this.send(server, { t: "error", code: "room_full" });
+        this.safeClose(server, ROOM_FULL_CLOSE_CODE, "Room full");
+        return new Response(null, { status: 101, webSocket: client });
+      }
+    }
+
+    const tag = role === "host" ? "host" : `guest:${guestId}`;
+    for (const old of this.ctx.getWebSockets(tag)) {
       this.send(old, { t: "error", code: "replaced" });
       this.safeClose(old, REPLACED_CLOSE_CODE, "Replaced by a new connection");
     }
 
-    const [client, server] = Object.values(new WebSocketPair());
-    this.ctx.acceptWebSocket(server, [role]);
+    this.ctx.acceptWebSocket(server, role === "host" ? ["host"] : ["guest", tag, `seat:${seat}`]);
     this.count(0, 1);
-    server.serializeAttachment({ roomId, role, joinedAt: Date.now() });
+    server.serializeAttachment({ roomId, role, seat, id: guestId ?? null, joinedAt: Date.now() });
 
-    const peer = this.peerOf(role);
-    this.send(server, { t: "welcome", v: PROTOCOL_VERSION, role, peer: peer !== null });
-    if (peer) this.send(peer, { t: "peer", present: true });
+    if (role === "host") {
+      this.send(server, { t: "welcome", v: PROTOCOL_VERSION, role, guests: this.guestSeats() });
+      for (const guest of this.guests()) this.send(guest, { t: "peer", present: true });
+    } else {
+      const host = this.host();
+      this.send(server, { t: "welcome", v: PROTOCOL_VERSION, role, seat, peer: host !== null });
+      if (host) this.send(host, { t: "peer", seat, present: true });
+    }
 
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  /**
+   * The seat this guest id held before if it is still free (a reload keeps its engine port, so the host's server
+   * sees a reconnect), else the lowest free seat; 0 when the room is full.
+   */
+  async pickSeat(guestId) {
+    const live = new Map();
+    for (const socket of this.openSockets("guest")) {
+      const attachment = socket.deserializeAttachment();
+      if (attachment?.id !== guestId) live.set(attachment.seat, attachment.id);
+    }
+    const remembered = (await this.ctx.storage.get("seats")) ?? {};
+    let seat = remembered[guestId];
+    if (!seat || live.has(seat)) {
+      // Prefer a seat nobody remembers, so a guest who briefly dropped out usually gets theirs back.
+      const taken = new Set(Object.values(remembered));
+      const free = [];
+      for (let s = 1; s <= MAX_GUESTS; s += 1) if (!live.has(s)) free.push(s);
+      seat = free.find((s) => !taken.has(s)) ?? free[0] ?? 0;
+    }
+    if (!seat) return 0;
+    for (const [id, s] of Object.entries(remembered)) if (s === seat && id !== guestId) delete remembered[id];
+    remembered[guestId] = seat;
+    await this.ctx.storage.put("seats", remembered);
+    return seat;
+  }
+
   webSocketMessage(socket, payload) {
     this.count(1, 0);
-    const role = this.roleOf(socket);
+    const attachment = socket.deserializeAttachment();
+    const role = attachment && ROLES.includes(attachment.role) ? attachment.role : null;
     if (!role) {
       this.safeClose(socket, PROTOCOL_CLOSE_CODE, "Unknown connection");
       return;
     }
+    const limits = role === "host" ? HOST_LIMITS : GUEST_LIMITS;
 
     if (typeof payload === "string") {
       if (payload.length > MAX_TEXT_BYTES) {
         this.safeClose(socket, TOO_BIG_CLOSE_CODE, "Text frame too large");
         return;
       }
-      if (!this.take(socket, "text", TEXT_RATE, TEXT_BURST)) {
+      if (!this.take(socket, "text", limits.textRate, limits.textBurst)) {
         this.send(socket, { t: "error", code: "rate_limited" });
         return;
       }
@@ -163,8 +216,17 @@ export class RoomRelay extends DurableObject {
         this.send(socket, { t: "error", code: "bad_message" });
         return;
       }
-      const peer = this.peerOf(role);
-      if (peer) this.sendRaw(peer, payload);
+      if (role === "guest") {
+        const host = this.host();
+        if (host) this.send(host, { ...message, from: attachment.seat });
+        return;
+      }
+      if (message.to === undefined) {
+        for (const guest of this.guests()) this.sendRaw(guest, payload);
+      } else {
+        const guest = this.guestAt(message.to);
+        if (guest) this.sendRaw(guest, payload);
+      }
       return;
     }
 
@@ -172,9 +234,26 @@ export class RoomRelay extends DurableObject {
       this.safeClose(socket, TOO_BIG_CLOSE_CODE, "Binary frame too large");
       return;
     }
-    if (!this.take(socket, "binary", BINARY_RATE, BINARY_BURST)) return;
-    const peer = this.peerOf(role);
-    if (peer) this.sendRaw(peer, payload);
+    if (!this.take(socket, "binary", limits.binaryRate, limits.binaryBurst)) return;
+
+    if (role === "guest") {
+      const host = this.host();
+      const packets = host ? decodePackets(payload) : null;
+      if (!packets) return;
+      this.sendRaw(host, encodeSeatPackets(packets.map((packet) => ({ seat: attachment.seat, packet }))));
+      return;
+    }
+    const items = decodeSeatPackets(payload);
+    if (!items) return;
+    const bySeat = new Map();
+    for (const { seat, packet } of items) {
+      if (!bySeat.has(seat)) bySeat.set(seat, []);
+      bySeat.get(seat).push(packet);
+    }
+    for (const [seat, packets] of bySeat) {
+      const guest = this.guestAt(seat);
+      if (guest) this.sendRaw(guest, encodePackets(packets));
+    }
   }
 
   webSocketClose(socket, code, reason) {
@@ -191,13 +270,17 @@ export class RoomRelay extends DurableObject {
   leave(socket) {
     this.buckets.delete(socket);
     this.flushUsage();
-    const role = this.roleOf(socket);
-    if (!role) return;
-    // A replaced socket leaves while its successor is already open: the peer
-    // never noticed a gap, so do not tell it the other player left.
-    if (this.socketsFor(role, socket).length > 0) return;
-    const peer = this.peerOf(role);
-    if (peer) this.send(peer, { t: "peer", present: false });
+    const attachment = socket.deserializeAttachment();
+    if (!attachment || !ROLES.includes(attachment.role)) return;
+    // A replaced socket leaves while its successor is already open: nobody noticed a gap, so do not tell anyone.
+    if (attachment.role === "host") {
+      if (this.openSockets("host", socket).length > 0) return;
+      for (const guest of this.guests()) this.send(guest, { t: "peer", present: false });
+      return;
+    }
+    if (this.openSockets(`guest:${attachment.id}`, socket).length > 0) return;
+    const host = this.host();
+    if (host) this.send(host, { t: "peer", seat: attachment.seat, present: false });
   }
 
   count(messages, connections) {
@@ -217,32 +300,38 @@ export class RoomRelay extends DurableObject {
     this.ctx.waitUntil(report);
   }
 
-  roleOf(socket) {
-    const attachment = socket.deserializeAttachment();
-    return attachment && ROLES.includes(attachment.role) ? attachment.role : null;
-  }
-
-  /** Open sockets holding `role`, excluding `except` (getWebSockets() still lists a closing socket). */
-  socketsFor(role, except) {
+  /** Open sockets with `tag`, excluding `except` (getWebSockets() still lists a closing socket). */
+  openSockets(tag, except) {
     return this.ctx
-      .getWebSockets(role)
+      .getWebSockets(tag)
       .filter((socket) => socket !== except && socket.readyState === 1 /* OPEN */);
   }
 
-  peerOf(role) {
-    const [peer] = this.socketsFor(role === "host" ? "guest" : "host");
-    return peer ?? null;
+  host() {
+    return this.openSockets("host")[0] ?? null;
+  }
+
+  guests() {
+    return this.openSockets("guest");
+  }
+
+  guestAt(seat) {
+    return Number.isInteger(seat) ? this.openSockets(`seat:${seat}`)[0] ?? null : null;
+  }
+
+  guestSeats() {
+    return [...new Set(this.guests().map((socket) => socket.deserializeAttachment()?.seat).filter(Boolean))].sort();
   }
 
   take(socket, kind, rate, burst) {
     const now = Date.now();
     let bucket = this.buckets.get(socket);
     if (!bucket) {
-      bucket = { binary: { tokens: BINARY_BURST, at: now }, text: { tokens: TEXT_BURST, at: now } };
+      bucket = { binary: { tokens: null, at: now }, text: { tokens: null, at: now } };
       this.buckets.set(socket, bucket);
     }
     const state = bucket[kind];
-    state.tokens = Math.min(burst, state.tokens + ((now - state.at) / 1000) * rate);
+    state.tokens = Math.min(burst, state.tokens === null ? burst : state.tokens + ((now - state.at) / 1000) * rate);
     state.at = now;
     if (state.tokens < 1) return false;
     state.tokens -= 1;

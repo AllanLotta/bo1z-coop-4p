@@ -1,10 +1,34 @@
+# BO1 Zombies Co-op 4P (fork of invictus841's co-op extension)
+
+A fork of [invictus841/bo1z-coop-extension](https://github.com/invictus841/bo1z-coop-extension) for
+[vel.gg/bo1z](https://vel.gg/bo1z/) that supports **up to 4 players** (a host and three friends), on its own relay.
+
+What changed from upstream:
+
+- **Up to 4 players.** The relay holds one host and up to three guests per room (protocol v3). The host gives each
+  guest its own engine loopback ring and port; every guest's packets enter the server through one shared ring, each
+  stamped with its guest's port. Guests connect one at a time (a join turn), each with its own qport, because the server
+  tells loopback clients apart only by qport and port.
+- **Fixed: pressing Escape or T crashed the other players** (upstream had it too). With a menu or the chat open, a
+  client marks its usercmds; the other clients then draw a "player in a menu" effect whose material zombies never
+  loads (`Material_GetTechnique` ← `fx_drawCallback`, *unreachable*). The patched engine never sets that bit.
+- **Fixed: a guest waiting in the lobby got dropped (`EXE_ERR_CLIENT_CMD_OVERFLOW`).** Guests sent the host a
+  reliable `sl` command for every script sound, which only the host's own client should send.
+- A guest reload keeps its seat, and the host's player list shows players 2-4.
+
+Everyone in a game needs this fork (it does not talk to the 2-player version), and everyone must use the same relay.
+
+Tests: `node test/relay.test.mjs` (relay routing, against `npx wrangler dev --config relay/wrangler.jsonc`) and
+`node test/e2e.mjs <players> <map>` (real browsers on vel.gg with the extension; `PAUSETEST=1` presses Escape and T).
+
+---
+
 # BO1 Zombies 2-Player Co-op, by invictus841 (for vel.gg by MisaDev4)
 
 A Chrome extension by **invictus841** that adds **2-player co-op** to [vel.gg/bo1z](https://vel.gg/bo1z/), the
 browser version of Black Ops 1 Zombies made by **MisaDev4**. One player hosts, the other joins with an invite
 link, from anywhere: online, over the internet (you don't need to be on the same Wi-Fi). It also adds **PS5 / PS4 / Xbox controller** support.
 
-Co-op is for **2 players only** (a host and one friend), not 3 or 4.
 
 The game itself still runs from vel.gg; the extension only adds co-op on top of it, in your own browser.
 

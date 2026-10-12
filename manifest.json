@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "BO1 Zombies Co-op (vel.gg)",
-  "version": "1.5.2",
-  "description": "Two-player co-op (and PS5 / Xbox controller support) for the browser BO1 Zombies at vel.gg/bo1z by MisaDev4. One player hosts, the other joins with an invite link.",
+  "name": "BO1 Zombies Co-op 4P (vel.gg)",
+  "version": "2.0.0",
+  "description": "Up to 4-player co-op (and PS5 / Xbox controller support) for the browser BO1 Zombies at vel.gg/bo1z by MisaDev4. Fork of invictus841's 2-player extension. One player hosts, the others join with an invite link.",
   "content_scripts": [
     {
-      "matches": ["https://vel.gg/*"],
-      "js": ["dist/coop-main.js"],
+      "matches": [
+        "https://vel.gg/*"
+      ],
+      "js": [
+        "dist/coop-main.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN",
       "all_frames": false

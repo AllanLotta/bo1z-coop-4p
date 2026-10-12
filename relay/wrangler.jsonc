@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
-  "name": "bo1-zombies-coop-relay",
+  "name": "bo1z-coop-4p-relay",
   "main": "src/index.js",
   "compatibility_date": "2026-10-08",
   "durable_objects": {
