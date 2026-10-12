@@ -14,7 +14,11 @@ What changed from upstream:
   loads (`Material_GetTechnique` ← `fx_drawCallback`, *unreachable*). The patched engine never sets that bit.
 - **Fixed: a guest waiting in the lobby got dropped (`EXE_ERR_CLIENT_CMD_OVERFLOW`).** Guests sent the host a
   reliable `sl` command for every script sound, which only the host's own client should send.
-- A guest reload keeps its seat, and the host's player list shows players 2-4.
+- A guest reload keeps its seat.
+- **New co-op card** (Portuguese when the browser is in Portuguese, English otherwise): the room code with copy
+  buttons, a step bar (room, map, load, join, play), the map, and a **lobby everyone sees** with the four players in
+  their BO1 colours, their names (set in Settings), status and ping. While playing it folds into a small pill.
+  Preview every state without loading the game: `node test/ui-preview.mjs pt-BR`.
 
 Everyone in a game needs this fork (it does not talk to the 2-player version), and everyone must use the same relay.
 

@@ -555,46 +555,322 @@
     return compact.match(/.{4}/g).join("-");
   }
 
+  // extension/src/strings.js
+  var LANG = /^pt\b/i.test(navigator.language ?? "") ? "pt" : "en";
+  var STRINGS = {
+    en: {
+      tagline: "up to 4 players",
+      chip: { solo: "Solo", hosting: "Hosting", joining: "Joining", lobby: "Lobby", ingame: "In game", paused: "Paused", offline: "Offline", error: "Error", ended: "Disconnected" },
+      intro: "Play zombies with up to 3 friends. One player hosts, the others join with the invite link. Everyone needs this extension.",
+      host: "Host a game",
+      joinLabel: "Join a friend",
+      joinPlaceholder: "Room code or invite link",
+      join: "Join",
+      room: "Room",
+      inviteAside: (n) => `${n} free seat${n === 1 ? "" : "s"}`,
+      copy: "Copy link",
+      copyCode: "Copy code",
+      copied: "Copied!",
+      players: "Lobby",
+      playersAside: (n, max) => `${n}/${max} connected`,
+      freeHint: "Send someone the link",
+      player: (n) => `Player ${n}`,
+      you: "you",
+      hostTag: "host",
+      st: {
+        free: "Free seat", left: "Left", reconnecting: "Reconnecting…", disconnected: "Disconnected \xB7 can rejoin", ingame: "In game", ready: "Ready",
+        joining: "Joining…", turn: "Next in line", loading: "Loading the map…", picking: "Picking a map", lobby: "In the lobby", opening: "Opening the room…", unknown: "Not in the room"
+      },
+      map: "Map",
+      noMap: "Not picked yet",
+      mapSubHost: "Everyone follows you to this map",
+      mapSubGuest: "Picked by the host",
+      hell: "Hell mode",
+      stepsGuest: ["Room", "Map", "Load", "Join", "Play"],
+      stepsHost: ["Map", "Load", "Lobby", "Play"],
+      pickMap: "Pick a map in the game menu. Everyone follows you to it.",
+      gate: "Players are on the way. Your start waits for them, so everyone spawns together.",
+      startNow: "Start now",
+      allIn: "Everyone is in. Click the game to start.",
+      latecomers: "Players who join after the start watch until the next round (the BO1 rule for latecomers).",
+      pausedYou: "Paused. Everyone is paused too.",
+      pausedBy: "Paused by another player.",
+      waitingHost: "Waiting for the host…",
+      hostPicking: "Waiting for the host to pick a map…",
+      opening: (m) => `Opening ${m}…`,
+      pressKey: "Press any key on the page to load the map.",
+      loadingMap: "Loading the map…",
+      hostLoading: "Waiting for the host to finish loading…",
+      nextInLine: "Another player is joining. You are next.",
+      connecting: "Connecting to the host…",
+      joiningGame: "Joining the host's game…",
+      waitingStart: "You are in. Waiting for the host to start.",
+      clickToPlay: "You are in. Click the game to play.",
+      lateJoin: "The host had already started: you watch until the next round, then spawn.",
+      ended: "Disconnected from the host. You can rejoin while the host keeps playing.",
+      failed: "Could not join. Try again.",
+      rejoin: "Rejoin",
+      goToHost: "Go to the host",
+      leave: "Leave co-op",
+      otherRelay: (h) => `This invite uses another relay (${h}). Switch to it to join.`,
+      useRelay: "Use this relay",
+      settings: "Settings",
+      yourName: "Your name",
+      namePlaceholder: "Shown in the lobby",
+      save: "Save",
+      connection: "Connection",
+      relay: "Relay",
+      relayState: { open: "Connected", connecting: "Connecting…", closed: "Reconnecting…", idle: "Starting…" },
+      ping: "Ping",
+      dropped: "Packets dropped",
+      relayDefault: "Group relay (4P)",
+      relayCustom: (h) => `Custom (${h})`,
+      relayNote: "Free Cloudflare plan: a daily allowance shared by everyone on this relay.",
+      changeRelay: "Change relay",
+      useDefault: "Use the default relay",
+      cancel: "Cancel",
+      relayEditNote: "Everyone must use the same relay. Your invite links carry it.",
+      relayPlaceholder: "https://your-relay.workers.dev",
+      usage: (p, t) => `Today: ${p}% of the free allowance used \xB7 resets at ${t}`,
+      usedUp: (t) => `Today's allowance is used up \xB7 resets at ${t}`,
+      controller: "Controller",
+      ctrl: { off: "Off", unavailable: "Unavailable", press: "Press any button on it", later: (n) => `${n} \xB7 works in game`, active: (n, a, max) => `${n} \xB7 aim ${a}/${max}` },
+      aimDown: "Aim −",
+      aimUp: "Aim +",
+      turnOff: "Turn off",
+      turnOn: "Turn on",
+      credits: "vel.gg by MisaDev4 \xB7 co-op by invictus841 \xB7 4P fork",
+      notRoomCode: "That is not a room code. Paste the invite link or the 16-letter code.",
+      notRelay: "That is not a relay address. It looks like https://something.workers.dev",
+      controllerReload: "Reload the page to apply the controller setting.",
+      engineUpdated: "vel.gg updated its game engine, and this version of the extension does not know it yet: co-op and the controller are off.",
+      enginePatchFailed: (m) => `Could not prepare the engine (${m}): co-op and the controller are off.`,
+      replaced: "This room was opened in another tab or window.",
+      full: (n) => `This game is full (${n} players).`,
+      workerFailed: (m) => `Co-op worker failed: ${m}`,
+      unexpectedMemory: "Unexpected engine memory: co-op is off.",
+      hostNoAnswer: "The host did not answer. Check that their game page is open, then reload.",
+      versionMismatch: "You and the host have different versions of the game. Reload both pages.",
+      hostPlaying: (m) => `The host is playing ${m}. Reload this page.`,
+      connectFailed: "Could not start the connection to the host. Reload both pages.",
+      notLetIn: "The host did not let us in. Reload both pages and try again.",
+      hostLeft: "The host left the game."
+    },
+    pt: {
+      tagline: "at\xE9 4 jogadores",
+      chip: { solo: "Solo", hosting: "Hospedando", joining: "Entrando", lobby: "Lobby", ingame: "Em jogo", paused: "Pausado", offline: "Offline", error: "Erro", ended: "Desconectado" },
+      intro: "Jogue zombies com at\xE9 3 amigos. Um jogador hospeda e os outros entram pelo link de convite. Todos precisam desta extens\xE3o.",
+      host: "Hospedar partida",
+      joinLabel: "Entrar na partida de um amigo",
+      joinPlaceholder: "C\xF3digo da sala ou link",
+      join: "Entrar",
+      room: "Sala",
+      inviteAside: (n) => `${n} vaga${n === 1 ? "" : "s"} livre${n === 1 ? "" : "s"}`,
+      copy: "Copiar link",
+      copyCode: "Copiar c\xF3digo",
+      copied: "Copiado!",
+      players: "Lobby",
+      playersAside: (n, max) => `${n}/${max} conectados`,
+      freeHint: "Mande o link para algu\xE9m",
+      player: (n) => `Jogador ${n}`,
+      you: "voc\xEA",
+      hostTag: "host",
+      st: {
+        free: "Vaga livre", left: "Saiu", reconnecting: "Reconectando…", disconnected: "Desconectou \xB7 pode voltar", ingame: "Em jogo", ready: "Pronto",
+        joining: "Entrando…", turn: "Na fila para entrar", loading: "Carregando o mapa…", picking: "Escolhendo o mapa", lobby: "No lobby", opening: "Abrindo a sala…", unknown: "Fora da sala"
+      },
+      map: "Mapa",
+      noMap: "Ainda n\xE3o escolhido",
+      mapSubHost: "Todos v\xE3o seguir voc\xEA para este mapa",
+      mapSubGuest: "Escolhido pelo host",
+      hell: "Hell mode",
+      stepsGuest: ["Sala", "Mapa", "Carregar", "Entrar", "Jogar"],
+      stepsHost: ["Mapa", "Carregar", "Lobby", "Jogar"],
+      pickMap: "Escolha um mapa no menu do jogo. Todos v\xE3o seguir voc\xEA.",
+      gate: "Tem jogadores a caminho. Seu in\xEDcio espera por eles, para todos nascerem juntos.",
+      startNow: "Come\xE7ar agora",
+      allIn: "Todos entraram. Clique no jogo para come\xE7ar.",
+      latecomers: "Quem entrar depois do in\xEDcio assiste at\xE9 a pr\xF3xima rodada (regra do BO1 para quem chega atrasado).",
+      pausedYou: "Pausado. Todos est\xE3o pausados tamb\xE9m.",
+      pausedBy: "Pausado por outro jogador.",
+      waitingHost: "Esperando o host…",
+      hostPicking: "Esperando o host escolher o mapa…",
+      opening: (m) => `Abrindo ${m}…`,
+      pressKey: "Aperte qualquer tecla na p\xE1gina para carregar o mapa.",
+      loadingMap: "Carregando o mapa…",
+      hostLoading: "Esperando o host terminar de carregar…",
+      nextInLine: "Outro jogador est\xE1 entrando. Voc\xEA \xE9 o pr\xF3ximo.",
+      connecting: "Conectando ao host…",
+      joiningGame: "Entrando na partida do host…",
+      waitingStart: "Voc\xEA entrou. Esperando o host come\xE7ar.",
+      clickToPlay: "Voc\xEA entrou. Clique no jogo para jogar.",
+      lateJoin: "O host j\xE1 tinha come\xE7ado: voc\xEA assiste at\xE9 a pr\xF3xima rodada e ent\xE3o nasce.",
+      ended: "Desconectado do host. Voc\xEA pode voltar enquanto o host continuar jogando.",
+      failed: "N\xE3o deu para entrar. Tente de novo.",
+      rejoin: "Voltar para a partida",
+      goToHost: "Ir at\xE9 o host",
+      leave: "Sair do co-op",
+      otherRelay: (h) => `Este convite usa outro relay (${h}). Troque para ele para entrar.`,
+      useRelay: "Usar este relay",
+      settings: "Configura\xE7\xF5es",
+      yourName: "Seu nome",
+      namePlaceholder: "Aparece no lobby",
+      save: "Salvar",
+      connection: "Conex\xE3o",
+      relay: "Relay",
+      relayState: { open: "Conectado", connecting: "Conectando…", closed: "Reconectando…", idle: "Iniciando…" },
+      ping: "Ping",
+      dropped: "Pacotes perdidos",
+      relayDefault: "Relay do grupo (4P)",
+      relayCustom: (h) => `Personalizado (${h})`,
+      relayNote: "Plano gr\xE1tis da Cloudflare: uma cota di\xE1ria dividida por todos que usam este relay.",
+      changeRelay: "Trocar relay",
+      useDefault: "Usar o relay padr\xE3o",
+      cancel: "Cancelar",
+      relayEditNote: "Todos precisam usar o mesmo relay. Seus links de convite j\xE1 levam ele.",
+      relayPlaceholder: "https://seu-relay.workers.dev",
+      usage: (p, t) => `Hoje: ${p}% da cota gr\xE1tis usada \xB7 renova \xE0s ${t}`,
+      usedUp: (t) => `Cota de hoje esgotada \xB7 renova \xE0s ${t}`,
+      controller: "Controle",
+      ctrl: { off: "Desligado", unavailable: "Indispon\xEDvel", press: "Aperte qualquer bot\xE3o nele", later: (n) => `${n} \xB7 funciona no jogo`, active: (n, a, max) => `${n} \xB7 mira ${a}/${max}` },
+      aimDown: "Mira −",
+      aimUp: "Mira +",
+      turnOff: "Desligar",
+      turnOn: "Ligar",
+      credits: "vel.gg por MisaDev4 \xB7 co-op por invictus841 \xB7 fork 4P",
+      notRoomCode: "Isso n\xE3o \xE9 um c\xF3digo de sala. Cole o link de convite ou o c\xF3digo de 16 letras.",
+      notRelay: "Isso n\xE3o \xE9 um endere\xE7o de relay. Ele parece com https://algo.workers.dev",
+      controllerReload: "Recarregue a p\xE1gina para aplicar a configura\xE7\xE3o do controle.",
+      engineUpdated: "O vel.gg atualizou o motor do jogo e esta vers\xE3o da extens\xE3o ainda n\xE3o o conhece: co-op e controle desligados.",
+      enginePatchFailed: (m) => `N\xE3o deu para preparar o motor do jogo (${m}): co-op e controle desligados.`,
+      replaced: "Esta sala foi aberta em outra aba ou janela.",
+      full: (n) => `Esta partida est\xE1 cheia (${n} jogadores).`,
+      workerFailed: (m) => `O worker do co-op falhou: ${m}`,
+      unexpectedMemory: "Mem\xF3ria do motor inesperada: co-op desligado.",
+      hostNoAnswer: "O host n\xE3o respondeu. Confira se a p\xE1gina do jogo dele est\xE1 aberta e recarregue.",
+      versionMismatch: "Voc\xEA e o host est\xE3o com vers\xF5es diferentes do jogo. Recarreguem as duas p\xE1ginas.",
+      hostPlaying: (m) => `O host est\xE1 jogando ${m}. Recarregue esta p\xE1gina.`,
+      connectFailed: "N\xE3o deu para iniciar a conex\xE3o com o host. Recarreguem as duas p\xE1ginas.",
+      notLetIn: "O host n\xE3o deixou entrar. Recarreguem as duas p\xE1ginas e tentem de novo.",
+      hostLeft: "O host saiu da partida."
+    }
+  };
+  var T = STRINGS[LANG];
+  var MAP_GLYPHS = { five: "5", kino: "K", riese: "R", nacht: "N", verruckt: "V", shinonuma: "S", ascension: "A", cotd: "C", shangrila: "L", moon: "M" };
+
+
   // extension/src/ui.js
+  // Player colours as on the BO1 zombies scoreboard: white, blue, yellow, green.
+  var PLAYER_COLORS = ["#f2efe9", "#5aa8ff", "#f4c542", "#63d471"];
   var STYLE = `
-:host { all: initial; position: fixed; top: 12px; right: 12px; z-index: 2147483647; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #eee; }
-.card { width: 280px; background: rgba(8, 8, 8, .92); border: 1px solid #3a3a3a; border-radius: 6px; padding: 12px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
-.head { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; }
-.head .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; flex: none; }
-.head .dot.ok { background: #5fbf5f; } .head .dot.wait { background: #e0b84a; } .head .dot.bad { background: #e05a4a; }
-.head .grow { flex: 1; }
-.head button.icon { all: unset; cursor: pointer; color: #aaa; padding: 0 4px; font-size: 14px; }
-.body { margin-top: 10px; display: grid; gap: 8px; }
-.muted { color: #aaa; } .error { color: #ff8a7a; } .small { font-size: 12px; }
-.code { font: 600 16px/1.2 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .04em; color: #fff; user-select: all; }
-.lines { display: grid; gap: 2px; font-size: 12px; } .lines b { font-weight: 600; color: #ddd; }
-button.act { all: unset; box-sizing: border-box; text-align: center; cursor: pointer; padding: 7px 10px; border: 1px solid #555; border-radius: 4px; background: #1d1d1d; color: #fff; font-weight: 600; }
-button.act:hover, button.act:focus-visible { background: #2c2c2c; border-color: #888; }
-button.act.primary { background: #c9c9c9; color: #000; border-color: #c9c9c9; } button.act.primary:hover { background: #fff; }
-button.act[disabled] { opacity: .5; cursor: default; }
-a.link { color: #9cc7ff; text-decoration: underline; cursor: pointer; }
-.meter { height: 6px; border-radius: 3px; background: #333; overflow: hidden; }
-.meter > span { display: block; height: 100%; background: #5fbf5f; }
-.meter.warn > span { background: #e0b84a; } .meter.full > span { background: #e05a4a; }
+:host { all: initial; position: fixed; top: 12px; right: 12px; z-index: 2147483647; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg);
+  --bg: #121110; --bg2: #1b1917; --bg3: #24211e; --line: #34302b; --fg: #ece6dc; --muted: #9d958a; --dim: #6f685f;
+  --accent: #e2552f; --accent2: #f07a4f; --ok: #63d471; --wait: #f4c542; --bad: #ff6b5a; }
+* { box-sizing: border-box; }
+.card { width: 312px; max-height: calc(100vh - 24px); overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.55); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: linear-gradient(180deg, #1d1a17, var(--bg)); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
+.mark { display: grid; grid-template-columns: 6px 6px; gap: 2px; flex: none; }
+.mark i { width: 6px; height: 6px; border-radius: 1.5px; opacity: .9; }
+.title { flex: 1; min-width: 0; }
+.title b { display: block; font-size: 13px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.title span { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip { flex: none; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--bg3); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.chip.ok { color: var(--ok); border-color: rgba(99,212,113,.35); background: rgba(99,212,113,.08); }
+.chip.wait { color: var(--wait); border-color: rgba(244,197,66,.35); background: rgba(244,197,66,.08); }
+.chip.bad { color: var(--bad); border-color: rgba(255,107,90,.4); background: rgba(255,107,90,.08); }
+.chip.live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 1px; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+button.icon { all: unset; cursor: pointer; color: var(--muted); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; font-size: 15px; }
+button.icon:hover { background: var(--bg3); color: var(--fg); }
+.body { padding: 12px; display: grid; gap: 10px; }
+:host(.collapsed) .body { display: none; }
+:host(.collapsed) .head { border-bottom: 0; }
+.muted { color: var(--muted); } .small { font-size: 12px; } .error { color: var(--bad); }
+.label { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: baseline; }
+.label em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--muted); font-size: 11px; }
+.panel { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.panel .code { font: 700 17px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .05em; color: #fff; user-select: all; white-space: nowrap; margin-bottom: 9px; }
+.map { display: flex; align-items: center; gap: 10px; }
+.map .glyph { width: 34px; height: 34px; border-radius: 6px; flex: none; display: grid; place-items: center; background: radial-gradient(circle at 30% 30%, #3a2a22, #1a1411); border: 1px solid #4a3328; color: var(--accent2); font-weight: 900; font-size: 15px; }
+.map .name { font-weight: 700; font-size: 14px; }
+.map .sub { font-size: 11.5px; color: var(--muted); }
+.tag { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; vertical-align: 1px; margin-left: 5px; }
+.tag.host { background: rgba(226,85,47,.18); color: var(--accent2); }
+.tag.you { background: rgba(255,255,255,.1); color: var(--fg); }
+.tag.hell { background: rgba(255,107,90,.15); color: var(--bad); }
+.players { display: grid; gap: 6px; }
+.player { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; }
+.player.me { border-color: var(--line); }
+.player.empty { background: transparent; border: 1px dashed var(--line); }
+.badge { width: 26px; height: 26px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #111; position: relative; }
+.player.empty .badge { background: transparent !important; color: var(--dim); box-shadow: inset 0 0 0 1.5px var(--line); }
+.who { flex: 1; min-width: 0; }
+.who .name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player.empty .who .name { color: var(--dim); font-weight: 500; }
+.who .st { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); flex: none; }
+.dot.ok { background: var(--ok); } .dot.wait { background: var(--wait); animation: pulse 1.6s ease-in-out infinite; } .dot.bad { background: var(--bad); }
+.ping { flex: none; text-align: right; font: 600 11px ui-monospace, Menlo, monospace; color: var(--muted); display: grid; justify-items: end; gap: 2px; }
+.bars { display: flex; gap: 2px; align-items: flex-end; height: 10px; }
+.bars i { width: 3px; border-radius: 1px; background: var(--line); }
+.bars i:nth-child(1) { height: 4px; } .bars i:nth-child(2) { height: 7px; } .bars i:nth-child(3) { height: 10px; }
+.bars.q3 i { background: var(--ok); } .bars.q2 i:nth-child(-n+2) { background: var(--wait); } .bars.q1 i:nth-child(1) { background: var(--bad); }
+.steps { display: flex; align-items: flex-start; }
+.step { flex: 1; display: grid; justify-items: center; gap: 4px; position: relative; font-size: 10.5px; color: var(--dim); text-align: center; }
+.step::before { content: ""; position: absolute; top: 6px; left: -50%; width: 100%; height: 2px; background: var(--line); z-index: 0; }
+.step:first-child::before { display: none; }
+.step i { width: 14px; height: 14px; border-radius: 50%; background: var(--bg); border: 2px solid var(--line); z-index: 1; }
+.step.done { color: var(--muted); } .step.done::before { background: var(--accent); } .step.done i { background: var(--accent); border-color: var(--accent); }
+.step.now { color: var(--fg); font-weight: 700; } .step.now::before { background: var(--accent); } .step.now i { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(226,85,47,.25); }
+.step.now.fail i { border-color: var(--bad); box-shadow: 0 0 0 3px rgba(255,107,90,.2); }
+.call { border-radius: 8px; padding: 9px 10px; background: var(--bg2); border: 1px solid var(--line); border-left: 3px solid var(--muted); display: grid; gap: 8px; }
+.call.info { border-left-color: #5aa8ff; } .call.ok { border-left-color: var(--ok); } .call.wait { border-left-color: var(--wait); } .call.bad { border-left-color: var(--bad); background: rgba(255,107,90,.06); }
+.call b { font-weight: 700; }
 .row { display: flex; gap: 6px; } .row > * { flex: 1; }
-input { all: unset; box-sizing: border-box; padding: 6px 8px; border: 1px solid #555; border-radius: 4px; background: #111; color: #fff; font: 13px ui-monospace, Menlo, monospace; min-width: 0; }
-input:focus { border-color: #999; }
+button.act { all: unset; box-sizing: border-box; text-align: center; cursor: pointer; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg3); color: var(--fg); font-weight: 650; font-size: 12.5px; transition: background .12s, border-color .12s; }
+button.act:hover, button.act:focus-visible { background: #2e2a26; border-color: #4a443d; }
+button.act.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.act.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+button.act.ghost { background: transparent; color: var(--muted); }
+button.act.ghost:hover { color: var(--fg); }
+button.act.done { background: rgba(99,212,113,.15); border-color: rgba(99,212,113,.4); color: var(--ok); }
+button.act.slim { flex: 0 0 auto; padding: 6px 10px; }
+button.act[disabled] { opacity: .5; cursor: default; }
+input { all: unset; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: #0c0b0a; color: var(--fg); font: 12.5px ui-monospace, Menlo, monospace; min-width: 0; flex: 1; }
+input:focus { border-color: var(--accent); }
+input::placeholder { color: var(--dim); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; }
+.meter { height: 5px; border-radius: 3px; background: var(--bg3); overflow: hidden; margin-top: 5px; }
+.meter > span { display: block; height: 100%; background: var(--ok); }
+.meter.warn > span { background: var(--wait); } .meter.full > span { background: var(--bad); }
+.section { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 10px; }
+.section > button.toggle { all: unset; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.section > button.toggle:hover { color: var(--muted); }
+.section > button.toggle::after { content: "\\25BE"; font-size: 12px; transition: transform .15s; }
+.section.closed > button.toggle::after { transform: rotate(-90deg); }
+.credits { font-size: 11px; color: var(--dim); text-align: center; }
 .pill { display: none; }
 :host(.compact) .card { display: none; }
-:host(.compact) .pill { display: block; pointer-events: none; background: rgba(0,0,0,.55); border-radius: 12px; padding: 3px 10px; font-size: 12px; color: #ddd; }
+:host(.compact) .pill { display: flex; align-items: center; gap: 8px; pointer-events: none; background: rgba(12,11,10,.72); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; padding: 4px 10px; font: 600 11.5px system-ui, sans-serif; color: #ddd; backdrop-filter: blur(4px); }
 :host(.compact) .pill:empty { display: none; }
-:host(.collapsed) .body { display: none; }
+.pill .pd { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; color: var(--dim); }
+.pill .pd.on { background: currentColor; }
+.pill .sep { width: 1px; height: 12px; background: rgba(255,255,255,.15); }
 `;
   var Panel = class {
     constructor(handlers) {
       this.handlers = handlers;
       this.host = document.createElement("bo1z-coop");
       this.root = this.host.attachShadow({ mode: "closed" });
-      this.root.innerHTML = `<style>${STYLE}</style><div class="card"><div class="head"><span class="dot"></span><span class="grow">Co-op</span><button class="icon" data-act="collapse" title="Minimise">\u2013</button></div><div class="body"></div></div><div class="pill"></div>`;
-      this.card = this.root.querySelector(".card");
+      const mark = PLAYER_COLORS.map((c) => `<i style="background:${c}"></i>`).join("");
+      this.root.innerHTML = `<style>${STYLE}</style><div class="card"><div class="head"><span class="mark">${mark}</span><span class="title"><b>Co-op</b><span class="tagline"></span></span><span class="chip"></span><button class="icon" data-act="collapse" title="Minimise">–</button></div><div class="body"></div></div><div class="pill"></div>`;
       this.body = this.root.querySelector(".body");
-      this.dot = this.root.querySelector(".dot");
+      this.chip = this.root.querySelector(".chip");
+      this.tagline = this.root.querySelector(".tagline");
       this.pill = this.root.querySelector(".pill");
+      this.collapseButton = this.root.querySelector('[data-act="collapse"]');
       this.view = null;
       for (const type of ["keydown", "keyup", "keypress", "click", "mousedown", "mouseup", "pointerdown", "pointerup", "wheel"]) {
         this.host.addEventListener(type, (event) => event.stopPropagation());
@@ -604,7 +880,8 @@ input:focus { border-color: #999; }
         if (!button || button.disabled) return;
         const act = button.dataset.act;
         if (act === "collapse") {
-          this.host.classList.toggle("collapsed");
+          const collapsed = this.host.classList.toggle("collapsed");
+          this.collapseButton.textContent = collapsed ? "+" : "–";
           return;
         }
         const field = button.dataset.field ? this.root.querySelector(`input[data-field="${button.dataset.field}"]`) : null;
@@ -622,19 +899,38 @@ input:focus { border-color: #999; }
       if (document.documentElement) attach();
       else document.addEventListener("readystatechange", attach, { once: true });
     }
-    /** Re-renders only when the view changes, so typing in the input is never interrupted. */
+    /** Re-renders only when the view changes, so typing in an input is never interrupted. */
     render(view2) {
       const key = JSON.stringify(view2);
       if (key === this.view) return;
+      const focused = this.root.activeElement?.dataset?.field;
       const previous = new Map([...this.root.querySelectorAll("input[data-field]")].map((i) => [i.dataset.field, i.value]));
       this.view = key;
-      this.dot.className = `dot ${view2.tone ?? ""}`;
+      this.chip.className = `chip ${view2.chip?.tone ?? ""}`;
+      this.chip.textContent = view2.chip?.text ?? "";
+      this.tagline.textContent = view2.tagline ?? "";
       this.host.classList.toggle("compact", Boolean(view2.compact));
-      this.pill.textContent = view2.pill ?? "";
+      this.pill.replaceChildren(...this.pillParts(view2.pill));
       this.body.replaceChildren(...view2.blocks.map((block) => this.block(block)));
       for (const input of this.root.querySelectorAll("input[data-field]")) {
-        if (previous.get(input.dataset.field)) input.value = previous.get(input.dataset.field);
+        if (previous.has(input.dataset.field)) input.value = previous.get(input.dataset.field);
+        if (input.dataset.field === focused) input.focus();
       }
+    }
+    pillParts(pill) {
+      if (!pill) return [];
+      const parts = [];
+      for (const p of pill.players ?? []) {
+        const d = document.createElement("span");
+        d.className = `pd ${p.on ? "on" : ""}`;
+        d.style.color = PLAYER_COLORS[p.n - 1];
+        parts.push(d);
+      }
+      for (const text of pill.texts ?? []) {
+        if (parts.length) parts.push(Object.assign(document.createElement("span"), { className: "sep" }));
+        parts.push(document.createTextNode(text));
+      }
+      return parts;
     }
     block(block) {
       const el = (tag, cls, text) => {
@@ -643,43 +939,122 @@ input:focus { border-color: #999; }
         if (text != null) e.textContent = text;
         return e;
       };
+      const button = (b) => {
+        const e = el("button", `act ${b.style ?? ""}`, b.label);
+        e.dataset.act = b.act;
+        if (b.field) e.dataset.field = b.field;
+        if (b.disabled) e.disabled = true;
+        return e;
+      };
       switch (block.kind) {
         case "text":
           return el("div", block.cls ?? "", block.text);
-        case "code":
-          return el("div", "code", block.text);
-        case "lines": {
-          const box = el("div", "lines");
-          for (const [label, value] of block.lines) {
-            const line = el("div");
-            line.append(el("b", "", `${label}: `), document.createTextNode(value));
-            box.append(line);
+        case "label": {
+          const box = el("div", "label", block.text);
+          if (block.aside) box.append(el("em", "", block.aside));
+          return box;
+        }
+        case "room": {
+          const box = el("div", "panel");
+          const label = el("div", "label", block.label);
+          if (block.aside) label.append(el("em", "", block.aside));
+          box.append(label, el("div", "code", block.code));
+          if (block.buttons?.length) {
+            const row = el("div", "row");
+            for (const b of block.buttons) row.append(button(b));
+            box.append(row);
+          }
+          return box;
+        }
+        case "map": {
+          const box = el("div", "map");
+          box.append(el("div", "glyph", block.glyph ?? "?"));
+          const info = el("div");
+          const name = el("div", "name", block.name);
+          if (block.tag) name.append(el("span", "tag hell", block.tag));
+          info.append(name, el("div", "sub", block.sub ?? ""));
+          box.append(info);
+          return box;
+        }
+        case "players": {
+          const box = el("div");
+          const label = el("div", "label", block.label);
+          if (block.aside) label.append(el("em", "", block.aside));
+          const list = el("div", "players");
+          for (const p of block.players) {
+            const row = el("div", `player ${p.empty ? "empty" : ""} ${p.me ? "me" : ""}`);
+            const badge = el("div", "badge", String(p.n));
+            badge.style.background = PLAYER_COLORS[p.n - 1];
+            const who = el("div", "who");
+            const name = el("div", "name", p.name);
+            for (const t of p.tags ?? []) name.append(el("span", `tag ${t.cls}`, t.text));
+            const st = el("div", "st");
+            if (p.status) st.append(el("span", `dot ${p.tone ?? ""}`), document.createTextNode(p.status));
+            who.append(name, st);
+            row.append(badge, who);
+            if (p.ping != null) {
+              const ping = el("div", "ping");
+              const bars = el("span", `bars q${p.ping < 80 ? 3 : p.ping < 180 ? 2 : 1}`);
+              bars.append(el("i"), el("i"), el("i"));
+              ping.append(bars, el("span", "", `${p.ping} ms`));
+              row.append(ping);
+            }
+            list.append(row);
+          }
+          box.append(label, list);
+          return box;
+        }
+        case "steps": {
+          const box = el("div", "steps");
+          block.steps.forEach((text, i) => {
+            const state = i < block.current ? "done" : i === block.current ? `now ${block.fail ? "fail" : ""}` : "";
+            const step = el("div", `step ${state}`);
+            step.append(el("i"), el("span", "", text));
+            box.append(step);
+          });
+          return box;
+        }
+        case "callout": {
+          const box = el("div", `call ${block.tone ?? ""}`);
+          const text = el("div");
+          if (block.title) text.append(el("b", "", `${block.title} `));
+          text.append(document.createTextNode(block.text ?? ""));
+          box.append(text);
+          if (block.buttons?.length) {
+            const row = el("div", "row");
+            for (const b of block.buttons) row.append(button(b));
+            box.append(row);
           }
           return box;
         }
         case "buttons": {
           const row = el("div", "row");
-          for (const b of block.buttons) {
-            const button = el("button", `act ${b.primary ? "primary" : ""}`, b.label);
-            button.dataset.act = b.act;
-            if (b.disabled) button.disabled = true;
-            row.append(button);
-          }
+          for (const b of block.buttons) row.append(button(b));
           return row;
         }
-        case "link": {
-          const box = el("div", "small");
-          if (block.title) box.append(el("b", "", `${block.title} `));
-          const a = el("a", "link", block.text);
-          a.href = block.href;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          box.append(a);
+        case "input": {
+          const box = el("div");
+          if (block.label) box.append(el("div", "label", block.label));
+          const row = el("div", "row");
+          const input = el("input");
+          input.placeholder = block.placeholder ?? "";
+          input.spellcheck = false;
+          if (block.maxLength) input.maxLength = block.maxLength;
+          input.dataset.field = block.field;
+          input.dataset.act = block.act;
+          if (block.value) input.value = block.value;
+          row.append(input, button({ act: block.act, label: block.button, field: block.field, style: `${block.style ?? ""} slim` }));
+          box.append(row);
+          return box;
+        }
+        case "kv": {
+          const box = el("dl", "kv");
+          for (const [k, v, cls] of block.items) box.append(el("dt", "", k), el("dd", cls ?? "", v));
           return box;
         }
         case "meter": {
-          const box = el("div", "lines");
-          box.append(el("div", "small muted", block.label));
+          const box = el("div", "small muted");
+          box.append(document.createTextNode(block.label));
           const bar = el("div", `meter ${block.fraction >= 1 ? "full" : block.fraction >= 0.75 ? "warn" : ""}`);
           const fill = el("span");
           fill.style.width = `${Math.round(Math.min(1, Math.max(0, block.fraction)) * 100)}%`;
@@ -687,21 +1062,16 @@ input:focus { border-color: #999; }
           box.append(bar);
           return box;
         }
-        case "input": {
-          const row = el("div", "row");
-          const input = el("input");
-          input.placeholder = block.placeholder ?? "";
-          input.spellcheck = false;
-          input.dataset.field = block.field;
-          input.dataset.act = block.act;
-          if (block.value) input.value = block.value;
-          const button = el("button", "act", block.label);
-          button.dataset.act = block.act;
-          button.dataset.field = block.field;
-          button.style.flex = "0 0 auto";
-          row.append(input, button);
-          return row;
+        case "section": {
+          const box = el("div", `section ${block.open ? "" : "closed"}`);
+          const toggle = el("button", "toggle", block.title);
+          toggle.dataset.act = block.act;
+          box.append(toggle);
+          if (block.open) for (const child of block.blocks) box.append(this.block(child));
+          return box;
         }
+        case "credits":
+          return el("div", "credits", block.text);
         default:
           return el("div");
       }
@@ -1015,6 +1385,10 @@ input:focus { border-color: #999; }
       // Host: one entry per guest seat ever seen this session.
       guests: /* @__PURE__ */ new Map(),
       joinSeat: null,
+      // Lobby: the host's roster as guests last heard it; this player's name; the settings section.
+      lobby: null,
+      name: cleanName(readSetting("bo1z-coop-name", "")),
+      showSettings: false,
       copiedAt: 0,
       refreshRate: 60,
       log: []
@@ -1032,10 +1406,17 @@ input:focus { border-color: #999; }
       join: (text) => {
         const code = normalizeRoomCode(text);
         if (!code) {
-          coop.notice = "That is not a room code. Paste the invite link or the 16-letter code.";
+          coop.notice = T.notRoomCode;
           return;
         }
         go(`${BASE}?coop=join&room=${code}${coop.relayParam}`);
+      },
+      copyCode: () => {
+        navigator.clipboard?.writeText(coop.room).then(() => {
+          coop.copiedCodeAt = Date.now();
+        }, () => {
+          coop.notice = coop.room;
+        });
       },
       copy: () => {
         navigator.clipboard?.writeText(inviteLink(coop)).then(() => {
@@ -1058,7 +1439,7 @@ input:focus { border-color: #999; }
       saveRelay: (text) => {
         const url = normalizeRelay(text ?? "");
         if (!url) {
-          coop.notice = "That is not a relay address. It looks like https://something.workers.dev";
+          coop.notice = T.notRelay;
           return;
         }
         saveSetting("bo1z-coop-relay", url === DEFAULT_RELAY ? "" : url);
@@ -1078,7 +1459,15 @@ input:focus { border-color: #999; }
       controller: () => {
         coop.controller = !coop.controller;
         saveSetting("bo1z-coop-controller", coop.controller ? "1" : "0");
-        coop.notice = "Reload the page to apply the controller setting.";
+        coop.notice = T.controllerReload;
+      },
+      settings: () => {
+        coop.showSettings = !coop.showSettings;
+      },
+      saveName: (text) => {
+        coop.name = cleanName(text);
+        saveSetting("bo1z-coop-name", coop.name);
+        coop.sentPhaseAt = 0;
       },
       aimDown: () => setAim(coop, coop.aimLevel - 1),
       aimUp: () => setAim(coop, coop.aimLevel + 1)
@@ -1120,7 +1509,7 @@ input:focus { border-color: #999; }
       coop.hash = await sha256Hex(bytes);
       coop.build = BUILDS[coop.hash] ?? null;
       if (!coop.build) {
-        coop.error = "vel.gg updated its game engine, and this version of the extension does not know it yet: co-op and the controller are off.";
+        coop.error = T.engineUpdated;
         coop.note(`unknown engine build ${coop.hash}`);
         return bytes;
       }
@@ -1130,7 +1519,7 @@ input:focus { border-color: #999; }
         coop.note("engine patched");
         return patched;
       } catch (error) {
-        coop.error = `Could not prepare the engine (${error.message}): co-op and the controller are off.`;
+        coop.error = T.enginePatchFailed(error.message);
         coop.note(`patch failed: ${error.stack ?? error}`);
         return bytes;
       }
@@ -1367,7 +1756,7 @@ input:focus { border-color: #999; }
       outbox: [],
       lastFlush: 0,
       looping: false,
-      stats: { packetsOut: 0, packetsIn: 0, bytesOut: 0, bytesIn: 0, framesOut: 0, framesIn: 0, dropped: 0, lost: 0, rtt: null }
+      stats: { packetsOut: 0, packetsIn: 0, bytesOut: 0, bytesIn: 0, framesOut: 0, framesIn: 0, dropped: 0, lost: 0, rtt: null, rtts: {} }
     };
     const hosting = () => state.role === "host";
     const post = (message) => self.postMessage(message);
@@ -1474,9 +1863,11 @@ input:focus { border-color: #999; }
       if (message.t === "pong") {
         if (typeof message.ts === "number") {
           const rtt = Math.max(0, performance.now() - message.ts);
-          // The host pings every guest at once and shows the slowest.
-          state.stats.rtt = hosting() ? Math.max(rtt, state.stats.rttWindow ?? 0) : rtt;
-          if (hosting()) state.stats.rttWindow = state.stats.rtt;
+          if (hosting()) {
+            // The host pings every guest at once: one ping per seat, and the slowest overall.
+            if (Number.isInteger(message.from)) state.stats.rtts[message.from] = rtt;
+            state.stats.rtt = Math.max(0, ...Object.values(state.stats.rtts));
+          } else state.stats.rtt = rtt;
         }
         return;
       }
@@ -1547,7 +1938,6 @@ input:focus { border-color: #999; }
         const now = performance.now();
         if (now - lastPing >= PING_MS) {
           lastPing = now;
-          state.stats.rttWindow = 0;
           sendText({ t: "ping", ts: now });
         }
         if (now - lastStats >= 1e3) {
@@ -1574,8 +1964,8 @@ input:focus { border-color: #999; }
             guest.present = false;
           }
         }
-        if (message.state === "closed" && message.code === 4001) coop.error = "This room was opened in another tab or window.";
-        if (message.state === "closed" && message.code === 4004) coop.error = `This game is full (${MAX_GUESTS + 1} players).`;
+        if (message.state === "closed" && message.code === 4001) coop.error = T.replaced;
+        if (message.state === "closed" && message.code === 4004) coop.error = T.full(MAX_GUESTS + 1);
         coop.note(`relay ${message.state}${message.code ? ` ${message.code}` : ""}`);
       } else if (message.type === "control") {
         onControl(coop, message.message);
@@ -1584,7 +1974,7 @@ input:focus { border-color: #999; }
       }
     };
     worker.onerror = (event) => {
-      coop.error = `Co-op worker failed: ${event.message}`;
+      coop.error = T.workerFailed(event.message);
     };
     worker.postMessage({ type: "connect", relay: coop.relay, room: coop.room, role: coop.mode, guestId: coop.guestId });
     return worker;
@@ -1632,7 +2022,7 @@ input:focus { border-color: #999; }
         return;
       case "error":
         coop.note(`relay error ${message.code}`);
-        if (message.code === "room_full") coop.error = `This game is full (${MAX_GUESTS + 1} players).`;
+        if (message.code === "room_full") coop.error = T.full(MAX_GUESTS + 1);
         return;
       case "info":
         if (!host) onHostInfo(coop, message);
@@ -1646,6 +2036,9 @@ input:focus { border-color: #999; }
         if (host) {
           if (validSeat(message.from)) guestRecord(coop, message.from).pause = Boolean(message.on);
         } else coop.remotePause = Boolean(message.on);
+        return;
+      case "lobby":
+        if (!host && Array.isArray(message.players)) coop.lobby = message;
         return;
       case "pos":
         if (!host && Array.isArray(message.o) && message.o.length === 3 && message.o.every(Number.isFinite)) {
@@ -1672,12 +2065,13 @@ input:focus { border-color: #999; }
     guest.pause = false;
     guest.sentState = null;
     guest.sentPause = null;
+    coop.sentLobby = null;
     sendInfo(coop, seat);
   }
   var anyGuest = (coop) => [...coop.guests.values()].some((guest) => guest.present);
   function greet(coop) {
     if (coop.mode === "host") return;
-    send(coop, { t: "state", phase: coop.phase, v: VERSION });
+    send(coop, { t: "state", phase: coop.phase, v: VERSION, name: coop.name });
     send(coop, { t: "pause", on: Boolean(coop.menuOpen) });
   }
   function sendInfo(coop, to) {
@@ -1708,7 +2102,7 @@ input:focus { border-color: #999; }
   }
   function setupHost(coop, Module, args) {
     const mem = new EngineMemory(Module, coop.build);
-    if (!mem.mailboxesClear()) throw new Error("Unexpected engine memory: co-op is off.");
+    if (!mem.mailboxesClear()) throw new Error(T.unexpectedMemory);
     const rings = mem.allocateRemoteRings(MAX_GUESTS);
     mem.setInboundRing(rings.inPort);
     coop.mem = mem;
@@ -1736,13 +2130,13 @@ input:focus { border-color: #999; }
   }
   async function setupGuest(coop, Module, args) {
     const info = await until(() => coop.peerInfo?.zone ? coop.peerInfo : null, 3e4);
-    if (!info) throw new Error("The host did not answer. Check that their game page is open, then reload.");
-    if (info.hash && info.hash !== coop.hash) throw new Error("You and the host have different versions of the game. Reload both pages.");
+    if (!info) throw new Error(T.hostNoAnswer);
+    if (info.hash && info.hash !== coop.hash) throw new Error(T.versionMismatch);
     const zone = devmapZone(args);
-    if (zone !== info.zone) throw new Error(`The host is playing ${MAP_NAMES[info.slug] ?? info.zone}. Reload this page.`);
+    if (zone !== info.zone) throw new Error(T.hostPlaying(MAP_NAMES[info.slug] ?? info.zone));
     if (Array.isArray(info.gameArgs)) applyGameDvars(args, info.gameArgs);
     const mem = new EngineMemory(Module, coop.build);
-    if (!mem.mailboxesClear()) throw new Error("Unexpected engine memory: co-op is off.");
+    if (!mem.mailboxesClear()) throw new Error(T.unexpectedMemory);
     coop.mem = mem;
     coop.zone = zone;
     coop.pump.postMessage({
@@ -1839,6 +2233,7 @@ input:focus { border-color: #999; }
         send(coop, { t: "pause", on, to: g.seat });
       }
     }
+    broadcastLobby(coop);
     const view2 = latestView();
     if (present.some(active) && view2 && view2.ms !== coop.sentViewMs) {
       coop.sentViewMs = view2.ms;
@@ -1964,7 +2359,7 @@ input:focus { border-color: #999; }
     if (coop.peer && (coop.phase !== coop.sentPhase || Date.now() - (coop.sentPhaseAt ?? 0) > STATE_REPEAT_MS)) {
       coop.sentPhase = coop.phase;
       coop.sentPhaseAt = Date.now();
-      send(coop, { t: "state", phase: coop.phase, v: VERSION });
+      send(coop, { t: "state", phase: coop.phase, v: VERSION, name: coop.name });
     }
     if (!coop.peer) coop.sentPhase = null;
     const mem = coop.mem;
@@ -2014,7 +2409,7 @@ input:focus { border-color: #999; }
           coop.phase = "joining";
           coop.note("challenging; injecting host packets");
         } else if (Date.now() - coop.connectAt > 15e3) {
-          coop.error = "Could not start the connection to the host. Reload both pages.";
+          coop.error = T.connectFailed;
           coop.phase = "failed";
         }
         break;
@@ -2026,7 +2421,7 @@ input:focus { border-color: #999; }
           spawnPending(coop);
           coop.note("connected to host");
         } else if (Date.now() - coop.connectAt > 9e4) {
-          coop.error = "The host did not let us in. Reload both pages and try again.";
+          coop.error = T.notLetIn;
           coop.phase = "failed";
         }
         break;
@@ -2036,7 +2431,7 @@ input:focus { border-color: #999; }
           coop.note("disconnected");
         } else if (!coop.peer && coop.peerLeftAt && Date.now() - coop.peerLeftAt > HOST_GONE_MS) {
           coop.phase = "ended";
-          coop.notice = "The host left the game.";
+          coop.notice = T.hostLeft;
           mem.command("disconnect");
         } else {
           pauseGuest(coop, screen);
@@ -2049,118 +2444,216 @@ input:focus { border-color: #999; }
       default:
     }
   }
+  // extension/src/lobby.js
+  /** Lobby names: letters, digits and a few marks, at most 16 characters. */
+  function cleanName(text) {
+    return String(text ?? "").replace(/[^\p{L}\p{N} _.\-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 16);
+  }
+  var roundPing = (rtt) => Number.isFinite(rtt) ? Math.round(rtt) : null;
+  /** Host: what every player sees in the lobby (players 1..4, the host first). */
+  function hostRoster(coop) {
+    const screen = window.five?.screen;
+    const playing = screen === "playing";
+    const hostStatus = playing ? ["ingame", "ok"] : screen === "ready" ? ["lobby", "ok"] : screen === "loading" || screen === "download" || coop.mem ? ["loading", "wait"] : ["picking", "wait"];
+    const players = [{ n: 1, name: coop.name, host: true, status: hostStatus[0], tone: hostStatus[1], ping: null }];
+    const rtts = coop.stats?.rtts ?? {};
+    for (let seat = 1; seat <= MAX_GUESTS; seat += 1) {
+      const g = coop.guests.get(seat);
+      const phase = g?.state?.phase;
+      const active = g?.slot?.state === CLIENT_STATE.active;
+      let status, tone;
+      if (!g || !g.present && !g.slot && (!g.leftAt || Date.now() - g.leftAt > 6e4)) [status, tone] = ["free", ""];
+      else if (!g.present) [status, tone] = g.slot ? ["reconnecting", "wait"] : ["left", "bad"];
+      else if (["ended", "failed"].includes(phase)) [status, tone] = ["disconnected", "bad"];
+      else if (active) [status, tone] = playing ? ["ingame", "ok"] : ["ready", "ok"];
+      else if (coop.joinSeat === seat || g.slot || GUEST_CONNECTING.includes(phase)) [status, tone] = ["joining", "wait"];
+      else if (phase === "waiting-host" && coop.mem) [status, tone] = ["turn", "wait"];
+      else if (phase === "joining-room" && !coop.mem) [status, tone] = ["opening", "wait"];
+      else [status, tone] = ["loading", "wait"];
+      players.push({
+        n: seat + 1,
+        name: status === "free" ? "" : cleanName(g?.state?.name),
+        status,
+        tone,
+        ping: g?.present ? roundPing(rtts[seat]) : null
+      });
+    }
+    return { t: "lobby", players, slug: MAP_SLUGS[coop.zone ?? currentZone()] ?? null, horde: currentHorde(), playing };
+  }
+  function broadcastLobby(coop) {
+    if (!coop.peer) {
+      coop.sentLobby = null;
+      return;
+    }
+    const lobby = hostRoster(coop);
+    const key = JSON.stringify(lobby);
+    if (key !== coop.sentLobby || Date.now() - (coop.sentLobbyAt ?? 0) > 5e3) {
+      coop.sentLobby = key;
+      coop.sentLobbyAt = Date.now();
+      send(coop, lobby);
+    }
+  }
+  /** A guest's copy of the host's lobby, with its own row filled in from what it knows best. */
+  function guestRoster(coop) {
+    const players = Array.isArray(coop.lobby?.players) ? coop.lobby.players.slice(0, MAX_GUESTS + 1) : [];
+    if (!players.length) {
+      players.push({ n: 1, name: "", host: true, status: coop.peer ? "loading" : "unknown", tone: coop.peer ? "wait" : "" });
+      for (let seat = 1; seat <= MAX_GUESTS; seat += 1) players.push({ n: seat + 1, name: "", status: "free", tone: "" });
+    }
+    const mine = ownStatus(coop);
+    return players.map((p) => validSeat(coop.seat) && p.n === coop.seat + 1 ? { ...p, name: coop.name, ping: roundPing(coop.stats?.rtt), status: mine[0], tone: mine[1] } : p);
+  }
+  function ownStatus(coop) {
+    const phase = coop.phase;
+    if (phase === "connected") return coop.lobby?.playing || coop.peerState?.screen === "playing" ? ["ingame", "ok"] : ["ready", "ok"];
+    if (["ended", "failed"].includes(phase)) return ["disconnected", "bad"];
+    if (GUEST_CONNECTING.includes(phase)) return ["joining", "wait"];
+    if (phase === "waiting-host" && coop.peerState?.ready && !coop.peerState.turn) return ["turn", "wait"];
+    return ["loading", "wait"];
+  }
+  function playerRows(coop, roster, meN) {
+    return roster.map((p) => {
+      const n = Number(p.n);
+      const tags = [];
+      if (p.host) tags.push({ cls: "host", text: T.hostTag });
+      if (n === meN) tags.push({ cls: "you", text: T.you });
+      const empty = p.status === "free";
+      return {
+        n,
+        name: empty ? T.st.free : cleanName(p.name) || T.player(n),
+        tags,
+        me: n === meN,
+        empty,
+        status: empty ? "" : T.st[p.status] ?? T.st.unknown,
+        tone: p.tone ?? "",
+        ping: empty || p.host || !Number.isFinite(p.ping) ? null : p.ping
+      };
+    }).map((row) => row.empty ? { ...row, status: coop.mode === "host" ? T.freeHint : "" } : row);
+  }
+  function mapBlock(coop, slug, horde, sub) {
+    return slug
+      ? { kind: "map", glyph: MAP_GLYPHS[slug] ?? "?", name: MAP_NAMES[slug]?.replace(/"/g, "") ?? slug, tag: horde ? T.hell : null, sub }
+      : { kind: "map", glyph: "?", name: T.noMap, sub };
+  }
+
   function view(coop) {
     const blocks = [];
     const screen = window.five?.screen;
     const playing = screen === "playing" && !coop.mem?.menuOpen();
-    if (coop.error) blocks.push({ kind: "text", cls: "error", text: coop.error });
-    if (coop.notice) blocks.push({ kind: "text", cls: "muted small", text: coop.notice });
+    const relayState = T.relayState[coop.socket] ?? T.relayState.idle;
+    if (coop.error) blocks.push({ kind: "callout", tone: "bad", text: coop.error });
+    if (coop.notice) blocks.push({ kind: "callout", tone: "info", text: coop.notice });
     if (!coop.mode) {
-      blocks.push({ kind: "text", cls: "muted", text: "Play zombies with up to 3 friends: one hosts, the others join with the invite link. Everyone needs this extension." });
-      blocks.push({ kind: "buttons", buttons: [{ act: "host", label: "Host a game", primary: true }] });
-      blocks.push({ kind: "input", field: "join", placeholder: "Room code or invite link", act: "join", label: "Join" });
-      blocks.push(...controllerBlocks(coop));
-      blocks.push(...relayBlocks(coop));
-      blocks.push(CREDITS);
-      return { tone: "", blocks, compact: playing && !coop.error && !coop.notice, pill: coop.gamepad?.status === "active" ? "\u{1F3AE}" : "" };
+      blocks.push({ kind: "text", cls: "muted", text: T.intro });
+      blocks.push({ kind: "buttons", buttons: [{ act: "host", label: T.host, style: "primary" }] });
+      blocks.push({ kind: "input", label: T.joinLabel, field: "join", placeholder: T.joinPlaceholder, act: "join", button: T.join });
+      blocks.push(settingsSection(coop, false));
+      const pill = coop.gamepad?.status === "active" ? { texts: ["\u{1F3AE}"] } : null;
+      return { chip: { text: T.chip.solo }, tagline: T.tagline, blocks, compact: playing && !coop.error && !coop.notice, pill };
     }
-    const relay = coop.socket === "open" ? "connected" : coop.socket === "connecting" ? "connecting\u2026" : coop.socket === "closed" ? "reconnecting\u2026" : "starting\u2026";
-    const rtt = coop.stats?.rtt != null ? `${Math.round(coop.stats.rtt)} ms` : "\u2013";
-    let tone = coop.error ? "bad" : "wait";
-    let pill = "";
-    if (coop.mode === "host") {
-      const active = (g) => g.slot?.state === CLIENT_STATE.active;
-      const lines = [];
-      let inGame = 0, anyWaiting = false;
-      for (let seat = 1; seat <= MAX_GUESTS; seat += 1) {
-        const g = coop.guests.get(seat);
-        const phase = g?.state?.phase;
-        const slot = g?.slot;
-        const gone = ["ended", "failed"].includes(phase);
-        const status = !g ? "free seat" : !g.present ? slot ? "reconnecting\u2026" : "left" : gone ? "disconnected (they can rejoin)" : active(g) ? "in the game" : coop.joinSeat === seat || slot ? "joining\u2026" : phase === "waiting-host" && coop.mem ? "waiting for their turn\u2026" : GUEST_CONNECTING.includes(phase) ? "joining\u2026" : "loading the map\u2026";
-        if (g?.present && active(g)) inGame += 1;
-        if (g?.present && !active(g) && !gone) anyWaiting = true;
-        lines.push([`Player ${seat + 1}`, status]);
-      }
-      if (inGame > 0 && !anyWaiting) tone = "ok";
-      blocks.push({ kind: "text", text: `You are hosting. Send this invite link to up to ${MAX_GUESTS} friends:` });
-      blocks.push({ kind: "code", text: coop.room });
-      blocks.push({ kind: "buttons", buttons: [{ act: "copy", label: Date.now() - coop.copiedAt < 2e3 ? "Copied!" : "Copy invite link", primary: true }] });
-      blocks.push({ kind: "lines", lines: [["Relay", relay], ...lines, ["Ping", rtt]] });
-      if (!coop.mem && screen !== "loading" && screen !== "download") {
-        blocks.push({ kind: "text", cls: "muted small", text: "Pick a map. The other players follow you to it." });
-      } else if (coop.gate) {
-        blocks.push({ kind: "text", text: "Players are on the way. Your start waits for them, so everyone spawns together." });
-        blocks.push({ kind: "buttons", buttons: [{ act: "startNow", label: "Start now" }] });
-      } else if (anyWaiting) {
-        blocks.push({ kind: "text", cls: "muted small", text: "Players who join after the start watch until the next round (the BO1 rule for latecomers)." });
-      }
-      if (coop.pausedApplied) blocks.push({ kind: "text", text: coop.menuOpen ? "Paused. Everyone is paused too." : "Paused by another player." });
-      pill = coop.pausedApplied ? `Co-op \xB7 ${coop.menuOpen ? "paused" : "paused by a player"}` : `Co-op \xB7 ${inGame + 1}/${MAX_GUESTS + 1} in \xB7 ${rtt}`;
+    const host = coop.mode === "host";
+    const roster = host ? hostRoster(coop).players : guestRoster(coop);
+    const meN = host ? 1 : validSeat(coop.seat) ? coop.seat + 1 : 0;
+    const rows = playerRows(coop, roster, meN);
+    const inGame = roster.filter((p) => p.status === "ingame" || p.status === "ready" || p.status === "lobby").length;
+    const freeSeats = roster.filter((p) => p.status === "free").length;
+    let chip;
+
+    if (host) {
+      const waiting = roster.some((p) => !p.host && ["joining", "turn", "loading", "opening", "reconnecting"].includes(p.status));
+      const step = screen === "playing" ? 3 : screen === "ready" ? 2 : coop.mem || screen === "loading" || screen === "download" ? 1 : 0;
+      chip = coop.error ? { text: T.chip.error, tone: "bad" } : coop.pausedApplied ? { text: T.chip.paused, tone: "wait" } : screen === "playing" ? { text: T.chip.ingame, tone: "ok live" } : { text: T.chip.hosting, tone: "wait live" };
+      const linkCopied = Date.now() - coop.copiedAt < 2e3, codeCopied = Date.now() - (coop.copiedCodeAt ?? 0) < 2e3;
+      blocks.push({ kind: "room", label: T.room, aside: T.inviteAside(freeSeats), code: coop.room, buttons: [
+        { act: "copy", label: linkCopied ? T.copied : T.copy, style: linkCopied ? "done" : "primary" },
+        { act: "copyCode", label: codeCopied ? T.copied : T.copyCode, style: codeCopied ? "done" : "" }
+      ] });
+      blocks.push({ kind: "steps", steps: T.stepsHost, current: step });
+      if (!coop.mem && screen !== "loading" && screen !== "download") blocks.push({ kind: "callout", tone: "info", text: T.pickMap });
+      else if (coop.gate) blocks.push({ kind: "callout", tone: "wait", text: T.gate, buttons: [{ act: "startNow", label: T.startNow }] });
+      else if (screen === "ready" && !waiting && roster.length > 1 && roster.some((p) => !p.host && p.status === "ready")) blocks.push({ kind: "callout", tone: "ok", text: T.allIn });
+      else if (waiting && screen === "playing") blocks.push({ kind: "callout", tone: "info", text: T.latecomers });
+      if (coop.pausedApplied) blocks.push({ kind: "callout", tone: "wait", text: coop.menuOpen ? T.pausedYou : T.pausedBy });
+      blocks.push(mapBlock(coop, MAP_SLUGS[coop.zone ?? currentZone()] ?? null, currentHorde(), T.mapSubHost));
     } else {
+      const slug = coop.lobby?.slug ?? coop.peerInfo?.slug ?? null;
+      const hostMap = slug ? MAP_NAMES[slug]?.replace(/"/g, "") : null;
+      const phase = coop.phase;
+      const step = { "joining-room": coop.peerInfo?.slug ? 1 : 0, following: 1, loading: 2, "waiting-host": 3, freezing: 3, connect: 3, challenging: 3, joining: 3, connected: 4 }[phase] ?? coop.lastStep ?? 0;
+      if (!["ended", "failed"].includes(phase)) coop.lastStep = step;
+      const failed = ["ended", "failed"].includes(phase);
+      chip = coop.error ? { text: T.chip.error, tone: "bad" } : failed ? { text: T.chip.ended, tone: "bad" } : coop.pausedApplied ? { text: T.chip.paused, tone: "wait" } : phase === "connected" ? screen === "playing" ? { text: T.chip.ingame, tone: "ok live" } : { text: T.chip.lobby, tone: "ok" } : { text: T.chip.joining, tone: "wait live" };
       if (coop.inviteRelay && coop.inviteRelay !== coop.relay) {
-        blocks.push({ kind: "text", text: `This invite uses another relay: ${new URL(coop.inviteRelay).hostname}. Switch to it to join.` });
-        blocks.push({ kind: "buttons", buttons: [{ act: "useInviteRelay", label: "Use this relay", primary: true }] });
+        blocks.push({ kind: "callout", tone: "wait", text: T.otherRelay(new URL(coop.inviteRelay).hostname), buttons: [{ act: "useInviteRelay", label: T.useRelay, style: "primary" }] });
       }
-      const host = coop.peerInfo?.slug ? MAP_NAMES[coop.peerInfo.slug] : null;
-      const steps = {
-        "joining-room": coop.peer ? host ? `Opening ${host}\u2026` : "Waiting for the host to pick a map\u2026" : "Waiting for the host\u2026",
-        following: `Opening ${host ?? "the host's map"}\u2026`,
-        loading: "Loading the map\u2026",
-        "waiting-host": coop.peer ? "Waiting for the host to finish loading\u2026" : "Waiting for the host\u2026",
-        freezing: "Connecting\u2026",
-        connect: "Connecting\u2026",
-        challenging: "Connecting\u2026",
-        joining: "Joining the host's game\u2026",
-        connected: "In the host's game.",
-        ended: "Disconnected from the host. You can rejoin while the host keeps playing.",
-        failed: "Could not join. Try again."
-      };
-      if (coop.phase === "connected") tone = "ok";
+      blocks.push({ kind: "steps", steps: T.stepsGuest, current: step, fail: failed });
       const onHostMap = coop.peerInfo?.slug && currentSlug() === coop.peerInfo.slug;
-      if ((coop.phase === "loading" || coop.phase === "joining-room" && onHostMap) && screen === "landing") {
-        blocks.push({ kind: "text", text: "Press any key on the page to load the map." });
-      }
-      blocks.push({ kind: "text", text: steps[coop.phase] ?? "Joining\u2026" });
-      if (coop.joinedLate && ["joining", "connected"].includes(coop.phase)) {
-        blocks.push({ kind: "text", cls: "muted small", text: "The host had already started, so you watch until the next round, then spawn (the BO1 rule for latecomers)." });
-      }
-      if (coop.phase === "waiting-host" && coop.peerState?.ready && !coop.peerState.turn) blocks.push({ kind: "text", cls: "muted small", text: "Another player is joining; you are next." });
-      blocks.push({ kind: "lines", lines: [["Room", coop.room], ["You", validSeat(coop.seat) ? `player ${coop.seat + 1}` : "\u2013"], ["Relay", relay], ["Host", coop.peer ? "here" : "not here"], ["Ping", rtt]] });
-      if (coop.phase === "connected" && screen === "ready") blocks.push({ kind: "text", cls: "muted small", text: "Click the game to play." });
-      if (coop.phase === "connected" && coop.pausedApplied) blocks.push({ kind: "text", text: coop.menuOpen ? "Paused. The host is paused too." : "Paused by the host." });
-      if (coop.phase === "connected" && coop.hostPos) blocks.push({ kind: "buttons", buttons: [{ act: "goToHost", label: "Go to player 1" }] });
-      if (["ended", "failed"].includes(coop.phase)) blocks.push({ kind: "buttons", buttons: [{ act: "rejoin", label: "Rejoin", primary: true }] });
-      pill = coop.phase === "connected" && coop.pausedApplied ? `Co-op \xB7 ${coop.menuOpen ? "paused" : "paused by host"}` : `Co-op \xB7 ${coop.phase === "connected" ? "with host" : steps[coop.phase] ?? ""} \xB7 ${rtt}`;
+      const message = {
+        "joining-room": coop.peer ? hostMap ? T.opening(hostMap) : T.hostPicking : T.waitingHost,
+        following: T.opening(hostMap ?? "…"),
+        loading: T.loadingMap,
+        "waiting-host": coop.peerState?.ready && !coop.peerState.turn ? T.nextInLine : coop.peer ? T.hostLoading : T.waitingHost,
+        freezing: T.connecting,
+        connect: T.connecting,
+        challenging: T.connecting,
+        joining: T.joiningGame,
+        connected: screen === "playing" ? null : coop.peerState?.screen === "playing" ? T.clickToPlay : screen === "ready" && coop.lobby?.playing ? T.clickToPlay : T.waitingStart,
+        ended: T.ended,
+        failed: T.failed
+      }[phase];
+      if ((phase === "loading" || phase === "joining-room" && onHostMap) && screen === "landing") blocks.push({ kind: "callout", tone: "wait", title: "⌨", text: T.pressKey });
+      else if (message) blocks.push({ kind: "callout", tone: failed ? "bad" : phase === "connected" ? "ok" : "info", text: message, buttons: failed ? [{ act: "rejoin", label: T.rejoin, style: "primary" }] : [] });
+      if (coop.joinedLate && ["joining", "connected"].includes(phase)) blocks.push({ kind: "callout", tone: "info", text: T.lateJoin });
+      if (phase === "connected" && coop.pausedApplied) blocks.push({ kind: "callout", tone: "wait", text: coop.menuOpen ? T.pausedYou : T.pausedBy });
+      blocks.push(mapBlock(coop, slug, coop.lobby?.horde ?? coop.peerInfo?.horde, T.mapSubGuest));
     }
-    if (coop.stats?.lost) blocks.push({ kind: "text", cls: "muted small", text: `${coop.stats.lost} packets dropped` });
-    const usage = usageBlock(coop);
-    if (usage) blocks.push(usage);
+
+    blocks.push({ kind: "players", label: T.players, aside: T.playersAside(inGame, MAX_GUESTS + 1), players: rows });
+    const actions = [];
+    if (!host && coop.phase === "connected" && coop.hostPos) actions.push({ act: "goToHost", label: T.goToHost });
+    actions.push({ act: "leave", label: T.leave, style: "ghost" });
+    blocks.push({ kind: "buttons", buttons: actions });
+    blocks.push(settingsSection(coop, true));
+
+    const ping = coop.stats?.rtt != null ? `${Math.round(coop.stats.rtt)} ms` : "–";
+    const pill = {
+      players: roster.map((p) => ({ n: p.n, on: ["ingame", "ready", "lobby"].includes(p.status) })),
+      texts: [coop.pausedApplied ? T.chip.paused : ping, ...coop.gamepad?.status === "active" ? ["\u{1F3AE}"] : []]
+    };
+    return { chip, tagline: `${T.room} ${coop.room}`, blocks, compact: playing && !coop.error, pill };
+  }
+  function settingsSection(coop, inGame) {
+    const blocks = [];
+    blocks.push({ kind: "input", label: T.yourName, field: "name", placeholder: T.namePlaceholder, act: "saveName", button: T.save, value: coop.name, maxLength: 16 });
+    if (inGame) {
+      const items = [[T.relay, T.relayState[coop.socket] ?? T.relayState.idle, coop.socket === "open" ? "" : "error"], [T.ping, coop.stats?.rtt != null ? `${Math.round(coop.stats.rtt)} ms` : "–"]];
+      if (coop.stats?.lost) items.push([T.dropped, String(coop.stats.lost)]);
+      blocks.push({ kind: "kv", items });
+    }
     blocks.push(...controllerBlocks(coop));
-    if (coop.gamepad?.status === "active") pill += " \xB7 \u{1F3AE}";
-    blocks.push({ kind: "buttons", buttons: [{ act: "leave", label: "Leave co-op" }] });
-    return { tone, blocks, compact: playing && !coop.error, pill };
+    blocks.push(...relayBlocks(coop));
+    blocks.push({ kind: "credits", text: T.credits });
+    return { kind: "section", title: T.settings, act: "settings", open: Boolean(coop.showSettings), blocks };
   }
   function controllerBlocks(coop) {
     const pad = coop.gamepad;
     const name = pad?.name ? pad.name.replace(/\s*\(.*$/, "").slice(0, 32) : "";
-    const status = !coop.controller ? "off" : !coop.patched && coop.hash ? "unavailable" : !pad || pad.status === "none" ? "press any button on it" : pad.status === "active" ? `${name} \xB7 aim ${coop.aimLevel + 1}/${AIM_SPEEDS.length}` : `${name} \xB7 works once you are in the game`;
-    const buttons = coop.controller && pad?.status !== "none" ? [{ act: "aimDown", label: "Aim \u2212" }, { act: "aimUp", label: "Aim +" }, { act: "controller", label: "Turn off" }] : [{ act: "controller", label: coop.controller ? "Turn controller off" : "Turn controller on" }];
-    return [{ kind: "lines", lines: [["Controller", status]] }, { kind: "buttons", buttons }];
+    const status = !coop.controller ? T.ctrl.off : !coop.patched && coop.hash ? T.ctrl.unavailable : !pad || pad.status === "none" ? T.ctrl.press : pad.status === "active" ? T.ctrl.active(name, coop.aimLevel + 1, AIM_SPEEDS.length) : T.ctrl.later(name);
+    const buttons = coop.controller && pad?.status !== "none" ? [{ act: "aimDown", label: T.aimDown }, { act: "aimUp", label: T.aimUp }, { act: "controller", label: T.turnOff, style: "ghost" }] : [{ act: "controller", label: coop.controller ? T.turnOff : T.turnOn, style: "ghost" }];
+    return [{ kind: "kv", items: [[T.controller, status]] }, { kind: "buttons", buttons }];
   }
-  var CREDITS = { kind: "text", cls: "muted small", text: "Thanks to MisaDev4 (vel.gg, the browser BO1 Zombies) \xB7 Co-op extension by invictus841" };
   function relayBlocks(coop) {
     const own = coop.relay !== DEFAULT_RELAY;
-    const blocks = [{ kind: "lines", lines: [["Relay", own ? `custom (${new URL(coop.relay).hostname})` : "the group's (4P)"]] }];
-    if (!own) blocks.push({ kind: "text", cls: "muted small", text: "Cloudflare's free plan: a daily allowance shared by everyone using this relay. When it is used up, co-op stops until the daily reset." });
+    const blocks = [{ kind: "kv", items: [[T.relay, own ? T.relayCustom(new URL(coop.relay).hostname) : T.relayDefault]] }];
+    if (!own) blocks.push({ kind: "text", cls: "muted small", text: T.relayNote });
     const usage = usageBlock(coop);
     if (usage) blocks.push(usage);
     if (coop.editRelay) {
-      blocks.push({ kind: "input", field: "relay", placeholder: "https://your-relay.workers.dev", act: "saveRelay", label: "Save", value: own ? coop.relay : "" });
-      blocks.push({ kind: "text", cls: "muted small", text: "Both players must use the same relay. Your invite links carry it, so your friend can switch with one click." });
-      blocks.push({ kind: "buttons", buttons: [{ act: "defaultRelay", label: "Use the default relay" }, { act: "editRelay", label: "Cancel" }] });
+      blocks.push({ kind: "input", field: "relay", placeholder: T.relayPlaceholder, act: "saveRelay", button: T.save, value: own ? coop.relay : "" });
+      blocks.push({ kind: "text", cls: "muted small", text: T.relayEditNote });
+      blocks.push({ kind: "buttons", buttons: [{ act: "defaultRelay", label: T.useDefault }, { act: "editRelay", label: T.cancel, style: "ghost" }] });
     } else {
-      blocks.push({ kind: "buttons", buttons: [{ act: "editRelay", label: "Change relay" }] });
+      blocks.push({ kind: "buttons", buttons: [{ act: "editRelay", label: T.changeRelay, style: "ghost" }] });
     }
     return blocks;
   }
@@ -2168,7 +2661,7 @@ input:focus { border-color: #999; }
     const usage = coop.usage;
     if (!usage) return null;
     const resets = new Date(usage.resetsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const label = usage.fraction >= 1 ? `Used up for today (estimate). Resets at ${resets}.` : `Today: ${Math.round(usage.fraction * 100)}% of the relay's free allowance used (estimate). Resets at ${resets}.`;
+    const label = usage.fraction >= 1 ? T.usedUp(resets) : T.usage(Math.round(usage.fraction * 100), resets);
     return { kind: "meter", fraction: usage.fraction, label };
   }
   function setAim(coop, level) {

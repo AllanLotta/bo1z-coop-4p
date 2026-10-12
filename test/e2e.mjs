@@ -122,6 +122,7 @@ if (allIn) {
   await host.page.evaluate(() => window.__bo1zCoop.mem.command("status"));
   await wait(1500);
   for (const p of players) await p.page.screenshot({ path: `${OUT}/${p.name}.png` }).catch(() => {});
+  for (const g of guests) log(`${g.name} sees lobby`, JSON.stringify(await g.page.evaluate(() => window.__bo1zCoop.lobby?.players?.map((p) => `${p.n}:${p.status}${p.ping != null ? `:${p.ping}ms` : ""}`))));
   if (process.env.PAUSETEST) {
     // The reported bug: one player pressing Escape (menu) or T (chat) crashed the others.
     const check = async (what) => {
